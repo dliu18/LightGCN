@@ -71,7 +71,38 @@ def test_one_batch(X):
             'precision':np.array(pre), 
             'ndcg':np.array(ndcg)}
         
-            
+def popularity_opportunity_one_batch(X):
+    max_k = world.topks[-1]
+    item_freqs_and_ranks = {}
+    for sorted_items, groundTrue in X:
+        groundTrue_np = groundTrue.numpy()
+        sorted_items_np = sorted_items.numpy()
+
+        pred_ranks = np.array([
+            np.where(sorted_items_np == item)[0][0] + 1 \
+                if item in sorted_items_np else max_k \
+                for item in groundTrue_np
+        ])
+
+        for idx, item in enumerate(groundTrue_np):
+            if item not in item_freqs_and_ranks:
+                item_freqs_and_ranks[item] = [0, 0]
+            item_freqs_and_ranks[item][0] += 1
+            item_freq_in_predictions[item][1] += pred_ranks[idx]
+    return item_freqs_and_ranks
+
+
+def gini_coef_one_batch(X):
+    k = world.topks[0]
+    item_freq_in_predictions = {}
+    for sorted_items, _ in X:
+        items_in_prediction = sorted_items.numpy()[:k]
+        for item in items_in_prediction:
+            if item not in item_freq_in_predictions:
+                item_freq_in_predictions[item] = 0
+            item_freq_in_predictions[item] += 1
+    return item_freq_in_predictions
+
 def Test(dataset, Recmodel, epoch, w=None, multicore=0):
     u_batch_size = world.config['test_u_batch_size']
     dataset: utils.BasicDataset
@@ -127,10 +158,15 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0):
         X = zip(rating_list, groundTrue_list)
         if multicore == 1:
             pre_results = pool.map(test_one_batch, X)
+            gini_coef_batches = pool.map(gini_coef_one_batch, X)
+            popularity_opportunity_batches = pool.map(popularity_opportunity_one_batch, X)
         else:
-            pre_results = []
+            pre_results, gini_coef_batches, popularity_opportunity_batches = [], [], []
             for x in X:
                 pre_results.append(test_one_batch(x))
+                gini_coef_batches.append(gini_coef_one_batch(x))
+                popularity_opportunity_batches.append(popularity_opportunity_one_batch(x))
+
         scale = float(u_batch_size/len(users))
         for result in pre_results:
             results['recall'] += result['recall']
@@ -140,6 +176,26 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0):
         results['precision'] /= float(len(users))
         results['ndcg'] /= float(len(users))
         # results['auc'] = np.mean(auc_record)
+
+        item_freqs_and_ranks = {item: [0, 0] for item in range(dataset.m_items)}
+        for item_freqs_and_ranks_batch in popularity_opportunity_batches:
+            for item in item_freqs_and_ranks_batch:
+                item_freqs_and_ranks[item][0] += item_freqs_and_ranks_batch[item][0]
+                item_freqs_and_ranks[item][1] += item_freqs_and_ranks_batch[item][1]
+        # compute avg rank 
+        avg_ranks = [item_freqs_and_ranks[item][1] / item_freqs_and_ranks[item][0] \
+            if item_freqs_and_ranks[item][0] > 0 else -1 for item in range(dataset.m_items)]
+
+        item_freq_in_predictions = {item: 0 for item in range(dataset.m_items)}
+        for item_freq_in_predictions_batch in gini_coef_batches:
+            for item in item_freq_in_predictions_batch:
+                item_freq_in_predictions[item] += item_freq_in_predictions_batch[item]
+        item_ratios = [item_freq_in_predictions[item] / (dataset.n_users * world.topks[0]) for item in range(dataset.m_items)]
+        
+        # gini coefficient 
+
+        # popularity-opportunity bias 
+
         if world.tensorboard:
             w.add_scalars(f'Test/Recall@{world.topks}',
                           {str(world.topks[i]): results['recall'][i] for i in range(len(world.topks))}, epoch)
@@ -147,6 +203,20 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0):
                           {str(world.topks[i]): results['precision'][i] for i in range(len(world.topks))}, epoch)
             w.add_scalars(f'Test/NDCG@{world.topks}',
                           {str(world.topks[i]): results['ndcg'][i] for i in range(len(world.topks))}, epoch)
+            
+            # popularity-bias metrics
+            w.add_scalar(
+                f'Test/Gini@{world.topks[0]}',
+                utils.gini_index(dataset.item_popularities, item_ratios)
+                epoch
+            )
+
+            w.add_scalar(
+                f'Test/Popularity Opportunity Bias@{world.topks[0]}',
+                utils.pop_opp_bias(dataset.item_popularities, avg_ranks),
+                epoch
+            )
+            
         if multicore == 1:
             pool.close()
         print(results)

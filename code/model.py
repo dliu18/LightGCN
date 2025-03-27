@@ -188,6 +188,9 @@ class LightGCN(BasicModel):
         neg_emb_ego = self.embedding_item(neg_items)
         return users_emb, pos_emb, neg_emb, users_emb_ego, pos_emb_ego, neg_emb_ego
     
+    ####
+    # TODO: define degree-correction regularization here
+    ####
     def bpr_loss(self, users, pos, neg):
         (users_emb, pos_emb, neg_emb, 
         userEmb0,  posEmb0, negEmb0) = self.getEmbedding(users.long(), pos.long(), neg.long())

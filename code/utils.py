@@ -15,6 +15,8 @@ from time import time
 from model import LightGCN
 from model import PairWiseModel
 from sklearn.metrics import roc_auc_score
+from scipy.stats import spearmanr
+
 import random
 import os
 try:
@@ -276,6 +278,21 @@ def getLabel(test_data, pred_data):
         pred = np.array(pred).astype("float")
         r.append(pred)
     return np.array(r).astype('float')
+
+def pop_opp_bias(pops, avg_ranks):
+    return -spearmanr(pops[avg_ranks > 0], avg_ranks[avg_ranks > 0])
+
+def gini_index(pops, item_ratios):
+'''
+    implements the Gini index popularity bias metric from Abdollahpouri et al. 2021 
+'''
+    M = len(pops)
+    weighted_ratio = 0.0
+    for k, item_idx in enumerate(np.argsort(pops)):
+        # k in this function is k-1 from the paper since the paper is 1-indexed
+        weighted_ratio += (2*(k+1) - M - 1) * item_ratios[item_idx]
+    return 1 - (weighted_ratio) / (M - 1)
+
 
 # ====================end Metrics=============================
 # =========================================================

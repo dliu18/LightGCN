@@ -41,6 +41,10 @@ class BasicDataset(Dataset):
         raise NotImplementedError
     
     @property
+    def item_popularities(self):
+        return NotImplementedError
+    
+    @property
     def allPos(self):
         raise NotImplementedError
     
@@ -285,9 +289,9 @@ class Loader(BasicDataset):
         self.UserItemNet = csr_matrix((np.ones(len(self.trainUser)), (self.trainUser, self.trainItem)),
                                       shape=(self.n_user, self.m_item))
         self.users_D = np.array(self.UserItemNet.sum(axis=1)).squeeze()
-        self.users_D[self.users_D == 0.] = 1
+        # self.users_D[self.users_D == 0.] = 1
         self.items_D = np.array(self.UserItemNet.sum(axis=0)).squeeze()
-        self.items_D[self.items_D == 0.] = 1.
+        # self.items_D[self.items_D == 0.] = 1.
         # pre-calculate
         self._allPos = self.getUserPosItems(list(range(self.n_user)))
         self.__testDict = self.__build_test()
@@ -313,6 +317,10 @@ class Loader(BasicDataset):
     def allPos(self):
         return self._allPos
 
+    @property
+    def item_popularities(self):
+        return self.items_D
+    
     def _split_A_hat(self,A):
         A_fold = []
         fold_len = (self.n_users + self.m_items) // self.folds
