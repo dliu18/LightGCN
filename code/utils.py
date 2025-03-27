@@ -280,12 +280,12 @@ def getLabel(test_data, pred_data):
     return np.array(r).astype('float')
 
 def pop_opp_bias(pops, avg_ranks):
-    return -spearmanr(pops[avg_ranks > 0], avg_ranks[avg_ranks > 0])
+    return -(spearmanr(pops[avg_ranks > 0], avg_ranks[avg_ranks > 0]).correlation)
 
 def gini_index(pops, item_ratios):
-'''
-    implements the Gini index popularity bias metric from Abdollahpouri et al. 2021 
-'''
+    '''
+        implements the Gini index popularity bias metric from Abdollahpouri et al. 2021 
+    '''
     M = len(pops)
     weighted_ratio = 0.0
     for k, item_idx in enumerate(np.argsort(pops)):
