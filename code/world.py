@@ -19,8 +19,8 @@ args = parse_args()
 ROOT_PATH = os.path.dirname(os.path.dirname(__file__))
 CODE_PATH = join(ROOT_PATH, 'code')
 DATA_PATH = join(ROOT_PATH, 'data')
-BOARD_PATH = join(CODE_PATH, 'runs')
-FILE_PATH = join(CODE_PATH, 'checkpoints')
+BOARD_PATH = join(CODE_PATH, 'runs', args.comment)
+FILE_PATH = join(CODE_PATH, 'checkpoints', args.comment)
 import sys
 sys.path.append(join(CODE_PATH, 'sources'))
 
@@ -34,6 +34,8 @@ all_dataset = ['lastfm', 'gowalla', 'yelp2018', 'amazon-book']
 all_models  = ['mf', 'lgn']
 # config['batch_size'] = 4096
 config['bpr_batch_size'] = args.bpr_batch
+config["use_cpp"] = args.use_cpp
+config["shuffle_users"] = args.shuffle_users > 0
 config['latent_dim_rec'] = args.recdim
 config['lightGCN_n_layers']= args.layer
 config['dropout'] = args.dropout
@@ -43,6 +45,8 @@ config['test_u_batch_size'] = args.testbatch
 config['multicore'] = args.multicore
 config['lr'] = args.lr
 config['decay'] = args.decay
+config['tau'] = args.tau
+config['item pairs'] = args.item_pairs
 config['pretrain'] = args.pretrain
 config['A_split'] = False
 config['bigdata'] = False

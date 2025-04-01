@@ -26,6 +26,7 @@ try:
     sampling = imp_from_filepath(path)
     sampling.seed(world.seed)
     sample_ext = True
+    world.cprint("Loaded CPP Sampling")
 except:
     world.cprint("Cpp extension not loaded")
     sample_ext = False
@@ -38,28 +39,46 @@ class BPRLoss:
         self.model = recmodel
         self.weight_decay = config['decay']
         self.lr = config['lr']
+        self.tau = config['tau']
         self.opt = optim.Adam(recmodel.parameters(), lr=self.lr)
 
     def stageOne(self, users, pos, neg):
         loss, reg_loss = self.model.bpr_loss(users, pos, neg)
+        degree_coefs, item_similarities = self.model.degree_correction_loss(users, pos, neg, self.tau)
         reg_loss = reg_loss*self.weight_decay
-        loss = loss + reg_loss
+        loss = loss + reg_loss + self.tau * torch.dot(degree_coefs, item_similarities)
+        num_item_pairs = 0
 
         self.opt.zero_grad()
         loss.backward()
         self.opt.step()
 
-        return loss.cpu().item()
+        degree_coefs = degree_coefs.detach().cpu().numpy()
+        item_similarities = np.array([sim.item() for sim in item_similarities.detach().cpu()])
+        # print(item_similarities)
+        
+        return {
+                "loss": loss.cpu().item(), 
+                "num item pairs": len(item_similarities),
+                "avg low pop similarity": np.mean(item_similarities[degree_coefs < np.percentile(degree_coefs, 10)])
+            }
+
 
 
 def UniformSample_original(dataset, neg_ratio = 1):
     dataset : BasicDataset
     allPos = dataset.allPos
     start = time()
-    if sample_ext:
+    if sample_ext and world.config["use_cpp"] and  not world.config["shuffle_users"]:
+        # print("Using CPP Sampling with No Shuffle")
+        S = sampling.sample_negative_no_shuffle(dataset.n_users, dataset.m_items,
+                                     dataset.trainDataSize, allPos, neg_ratio)
+    elif sample_ext and world.config["use_cpp"]:
+        # print("Using CPP Sampling with Shuffle")
         S = sampling.sample_negative(dataset.n_users, dataset.m_items,
                                      dataset.trainDataSize, allPos, neg_ratio)
     else:
+        # print("Using Python Sampling")
         S = UniformSample_original_python(dataset)
     return S
 
@@ -109,10 +128,10 @@ def set_seed(seed):
 
 def getFileName():
     if world.model_name == 'mf':
-        file = f"mf-{world.dataset}-{world.config['latent_dim_rec']}.pth.tar"
+        file = f"mf-{world.dataset}-{world.config['latent_dim_rec']}--{world.config['tau']}.pth.tar"
     elif world.model_name == 'lgn':
-        file = f"lgn-{world.dataset}-{world.config['lightGCN_n_layers']}-{world.config['latent_dim_rec']}.pth.tar"
-    return os.path.join(world.FILE_PATH,file)
+        file = f"lgn-{world.dataset}-{world.config['lightGCN_n_layers']}-{world.config['latent_dim_rec']}--{world.config['tau']}.pth.tar"
+    return os.path.join(world.FILE_PATH, file)
 
 def minibatch(*tensors, **kwargs):
 

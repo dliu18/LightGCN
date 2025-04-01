@@ -20,6 +20,8 @@ def parse_args():
                         help="the learning rate")
     parser.add_argument('--decay', type=float,default=1e-4,
                         help="the weight decay for l2 normalizaton")
+    parser.add_argument('--tau', type=float,default=10,
+                        help="degre-correction regularization hyperparam")
     parser.add_argument('--dropout', type=int,default=0,
                         help="using the dropout or not")
     parser.add_argument('--keepprob', type=float,default=0.6,
@@ -43,4 +45,7 @@ def parse_args():
     parser.add_argument('--pretrain', type=int, default=0, help='whether we use pretrained weight or not')
     parser.add_argument('--seed', type=int, default=2020, help='random seed')
     parser.add_argument('--model', type=str, default='lgn', help='rec-model, support [mf, lgn]')
+    parser.add_argument('--use_cpp', type=int, default=0, help='whether to use cpp sampling')
+    parser.add_argument('--shuffle_users', type=int, default=1, help='whether to shuffle users before batching')
+    parser.add_argument('--item_pairs', type=int, default=1, help='number of item_pairs per user for degree correction')
     return parser.parse_args()

@@ -71,6 +71,12 @@ class BasicDataset(Dataset):
         """
         raise NotImplementedError
 
+    def is_niche_user(self, users):
+        '''
+            Given a list of user indices, returns a binary list of the same length where the entry denotes whether the user is a niche user.
+        '''
+        raise NotImplementedError
+
 class LastFM(BasicDataset):
     """
     Dataset type for pytorch \n
@@ -295,6 +301,11 @@ class Loader(BasicDataset):
         # pre-calculate
         self._allPos = self.getUserPosItems(list(range(self.n_user)))
         self.__testDict = self.__build_test()
+
+        # assumes all users have training examples
+        avg_pop_per_user = np.array([np.mean([self.items_D[item] for item in self._allPos[user]]) for user in range(self.n_user)])
+        self.niche_users = avg_pop_per_user < np.percentile(avg_pop_per_user, 20)
+
         print(f"{world.dataset} is ready to go")
 
     @property
@@ -411,6 +422,12 @@ class Loader(BasicDataset):
         for user in users:
             posItems.append(self.UserItemNet[user].nonzero()[1])
         return posItems
+
+    def is_niche_user(self, users):
+        '''
+            Given a list of user indices, returns a binary list of the same length where the entry denotes whether the user is a niche user.
+        '''
+        return self.niche_users[users]
 
     # def getUserNegItems(self, users):
     #     negItems = []

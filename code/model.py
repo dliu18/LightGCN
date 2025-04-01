@@ -11,8 +11,11 @@ import world
 import torch
 from dataloader import BasicDataset
 from torch import nn
+import torch.nn.functional as F
 import numpy as np
-
+from math import sqrt
+import utils
+from time import time
 
 class BasicModel(nn.Module):    
     def __init__(self):
@@ -188,9 +191,54 @@ class LightGCN(BasicModel):
         neg_emb_ego = self.embedding_item(neg_items)
         return users_emb, pos_emb, neg_emb, users_emb_ego, pos_emb_ego, neg_emb_ego
     
-    ####
-    # TODO: define degree-correction regularization here
-    ####
+    def get_degree_correction_coefficient(self, d_i, d_j, tau):
+        # return (1 / sqrt(d_i * d_j)) - (1 / sqrt((d_i + tau)(d_j + tau)))
+        return sqrt(d_i * d_j)**-1
+        
+    def degree_correction_loss(self, users, pos, neg, tau):
+        start = time()
+        user_to_pos = {}
+        for idx in range(len(users)):
+            user = users[idx].item()
+            if user not in user_to_pos:
+                user_to_pos[user] = []
+            user_to_pos[user].append(pos[idx].to('cpu'))
+        _, all_items = self.computer()
+
+        start = time()
+        popularities = self.dataset.item_popularities
+        item_is, item_js = [], []
+        coefs = []
+        for user in user_to_pos:
+            if len(user_to_pos[user]) < 2:
+                continue
+
+            for _ in range(world.config["item pairs"]):
+                item_i, item_j = np.random.choice(user_to_pos[user], size=2, replace=False)
+
+                coefs.append(self.get_degree_correction_coefficient(
+                    popularities[item_i],
+                    popularities[item_j],
+                    tau
+                ))
+
+                item_is.append(item_i)
+                item_js.append(item_j)
+
+        start = time()
+        similarities = F.cosine_similarity(
+            torch.Tensor(all_items[item_is]), 
+            torch.Tensor(all_items[item_js])
+        )
+
+        # if len(user_to_pos) < world.config["bpr_batch_size"]:
+            # print(f"Batch size: {len(user_to_pos)}]\t Max items: {max([len(user_to_pos[user]) for user in user_to_pos])}")
+        return torch.tensor(coefs).to(world.device), similarities
+        # return torch.dot(
+        #     torch.tensor(coefs).to(world.device),
+        #     similarities
+        # ), len(similarities)
+
     def bpr_loss(self, users, pos, neg):
         (users_emb, pos_emb, neg_emb, 
         userEmb0,  posEmb0, negEmb0) = self.getEmbedding(users.long(), pos.long(), neg.long())

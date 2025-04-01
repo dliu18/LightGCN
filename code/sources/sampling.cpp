@@ -55,6 +55,38 @@ py::array_t<int> sample_negative(int user_num, int item_num, int train_num, std:
     return S_array;
 }
 
+py::array_t<int> sample_negative_no_shuffle(int user_num, int item_num, int train_num, std::vector<std::vector<int>> allPos, int neg_num)
+{
+    int perUserNum = (train_num / user_num);
+    int row = neg_num + 2;
+    py::array_t<int> S_array = py::array_t<int>({user_num * perUserNum, row});
+    py::buffer_info buf_S = S_array.request();
+    int *ptr = (int *)buf_S.ptr;
+
+    for (int user_idx = 0; user_idx < user_num; user_idx++)
+    {
+        int user = randint_(user_num);
+        std::vector<int> pos_item = allPos[user];
+
+        for (int pair_i = 0; pair_i < perUserNum; pair_i++)
+        {
+            int negitem = 0;
+            ptr[(user_idx * perUserNum + pair_i) * row] = user;
+            ptr[(user_idx * perUserNum + pair_i) * row + 1] = pos_item[randint_(pos_item.size())];
+            for (int index = 2; index < neg_num + 2; index++)
+            {
+                do
+                {
+                    negitem = randint_(item_num);
+                } while (
+                    find(pos_item.begin(), pos_item.end(), negitem) != pos_item.end());
+                ptr[(user_idx * perUserNum + pair_i) * row + index] = negitem;
+            }
+        }
+    }
+    return S_array;
+}
+
 py::array_t<int> sample_negative_ByUser(std::vector<int> users, int item_num, std::vector<std::vector<int>> allPos, int neg_num)
 {
     int row = neg_num + 2;
@@ -100,6 +132,8 @@ PYBIND11_MODULE(sampling, m)
     m.def("randint", &randint_, "generate int between [0 end]", "end"_a);
     m.def("seed", &set_seed, "set random seed", "seed"_a);
     m.def("sample_negative", &sample_negative, "sampling negatives for all",
+          "user_num"_a, "item_num"_a, "train_num"_a, "allPos"_a, "neg_num"_a);
+    m.def("sample_negative_no_shuffle", &sample_negative_no_shuffle, "sampling negatives for all",
           "user_num"_a, "item_num"_a, "train_num"_a, "allPos"_a, "neg_num"_a);
     m.def("sample_negative_ByUser", &sample_negative_ByUser, "sampling negatives for given users",
           "users"_a, "item_num"_a, "allPos"_a, "neg_num"_a);
