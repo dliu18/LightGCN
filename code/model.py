@@ -202,7 +202,7 @@ class LightGCN(BasicModel):
             user = users[idx].item()
             if user not in user_to_pos:
                 user_to_pos[user] = []
-            user_to_pos[user].append(pos[idx].to('cpu'))
+            user_to_pos[user].append(pos[idx].to('cpu').item())
         _, all_items = self.computer()
 
         start = time()

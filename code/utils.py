@@ -47,7 +47,6 @@ class BPRLoss:
         degree_coefs, item_similarities = self.model.degree_correction_loss(users, pos, neg, self.tau)
         reg_loss = reg_loss*self.weight_decay
         loss = loss + reg_loss + self.tau * torch.dot(degree_coefs, item_similarities)
-        num_item_pairs = 0
 
         self.opt.zero_grad()
         loss.backward()
@@ -56,7 +55,7 @@ class BPRLoss:
         degree_coefs = degree_coefs.detach().cpu().numpy()
         item_similarities = np.array([sim.item() for sim in item_similarities.detach().cpu()])
         # print(item_similarities)
-        
+
         return {
                 "loss": loss.cpu().item(), 
                 "num item pairs": len(item_similarities),

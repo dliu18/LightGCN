@@ -234,6 +234,10 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0):
                           {str(world.topks[i]): results['recall'][i] for i in range(len(world.topks) - 1)}, epoch)
             w.add_scalars(f'Test/Precision@{world.topks}',
                           {str(world.topks[i]): results['precision'][i] for i in range(len(world.topks) - 1)}, epoch)
+            w.add_scalars(f'Test/Niche Recall@{world.topks}',
+                          {str(world.topks[i]): results['niche recall'][i] for i in range(len(world.topks) - 1)}, epoch)
+            w.add_scalars(f'Test/Niche Precision@{world.topks}',
+                          {str(world.topks[i]): results['niche precision'][i] for i in range(len(world.topks) - 1)}, epoch)
             w.add_scalars(f'Test/NDCG@{world.topks}',
                           {str(world.topks[i]): results['ndcg'][i] for i in range(len(world.topks) - 1)}, epoch)
             
