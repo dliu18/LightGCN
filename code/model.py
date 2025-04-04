@@ -192,8 +192,8 @@ class LightGCN(BasicModel):
         return users_emb, pos_emb, neg_emb, users_emb_ego, pos_emb_ego, neg_emb_ego
     
     def get_degree_correction_coefficient(self, d_i, d_j, tau):
-        # return (1 / sqrt(d_i * d_j)) - (1 / sqrt((d_i + tau)(d_j + tau)))
-        return sqrt(d_i * d_j)**-1
+        return (1 / sqrt(d_i * d_j)) - (1 / sqrt((d_i + tau)*(d_j + tau)))
+        # return sqrt(d_i * d_j)**-1
         
     def degree_correction_loss(self, users, pos, neg, tau):
         start = time()
@@ -227,9 +227,9 @@ class LightGCN(BasicModel):
 
         start = time()
         similarities = F.cosine_similarity(
-            torch.Tensor(all_items[item_is]), 
-            torch.Tensor(all_items[item_js])
-        )
+                        torch.Tensor(all_items[item_is]), 
+                        torch.Tensor(all_items[item_js])
+                        )
 
         # if len(user_to_pos) < world.config["bpr_batch_size"]:
             # print(f"Batch size: {len(user_to_pos)}]\t Max items: {max([len(user_to_pos[user]) for user in user_to_pos])}")
@@ -250,7 +250,21 @@ class LightGCN(BasicModel):
         neg_scores = torch.mul(users_emb, neg_emb)
         neg_scores = torch.sum(neg_scores, dim=1)
         
-        loss = torch.mean(torch.nn.functional.softplus(neg_scores - pos_scores))
+        item_popularity_coefs = torch.ones(len(users))
+        user_coefs = torch.ones(len(users))
+
+        if world.config["normalize_users"]:
+            interaction_counts = self.dataset.user_interaction_counts[users.cpu().numpy()]
+            assert np.min(interaction_counts) > 0
+            user_coefs = torch.Tensor([1/sqrt(count) for count in interaction_counts]).to(world.device)
+
+
+        if world.config["normalize_items"]:
+            popularities = self.dataset.item_popularities[pos.cpu().numpy()]
+            assert np.min(popularities) > 0
+            item_popularity_coefs = torch.Tensor([1/sqrt(pop) for pop in popularities]).to(world.device)
+
+        loss = torch.mean(user_coefs * item_popularity_coefs * torch.nn.functional.softplus(neg_scores - pos_scores))
         
         return loss, reg_loss
        

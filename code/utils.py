@@ -8,6 +8,7 @@ Xiangnan He et al. LightGCN: Simplifying and Powering Graph Convolution Network 
 import world
 import torch
 from torch import nn, optim
+import torch.nn.functional as F
 import numpy as np
 from torch import log
 from dataloader import BasicDataset
@@ -38,6 +39,7 @@ class BPRLoss:
                  config : dict):
         self.model = recmodel
         self.weight_decay = config['decay']
+        self.degree_decay = config['degree decay']
         self.lr = config['lr']
         self.tau = config['tau']
         self.opt = optim.Adam(recmodel.parameters(), lr=self.lr)
@@ -46,18 +48,19 @@ class BPRLoss:
         loss, reg_loss = self.model.bpr_loss(users, pos, neg)
         degree_coefs, item_similarities = self.model.degree_correction_loss(users, pos, neg, self.tau)
         reg_loss = reg_loss*self.weight_decay
-        loss = loss + reg_loss + self.tau * torch.dot(degree_coefs, item_similarities)
+        full_loss = loss + reg_loss + self.degree_decay * torch.dot(degree_coefs, F.relu(item_similarities))
 
         self.opt.zero_grad()
-        loss.backward()
+        full_loss.backward()
         self.opt.step()
 
         degree_coefs = degree_coefs.detach().cpu().numpy()
         item_similarities = np.array([sim.item() for sim in item_similarities.detach().cpu()])
         # print(item_similarities)
 
+        original_loss = loss + reg_loss
         return {
-                "loss": loss.cpu().item(), 
+                "loss": original_loss.cpu().item(), 
                 "num item pairs": len(item_similarities),
                 "avg low pop similarity": np.mean(item_similarities[degree_coefs < np.percentile(degree_coefs, 10)])
             }
@@ -68,16 +71,21 @@ def UniformSample_original(dataset, neg_ratio = 1):
     dataset : BasicDataset
     allPos = dataset.allPos
     start = time()
-    if sample_ext and world.config["use_cpp"] and  not world.config["shuffle_users"]:
-        # print("Using CPP Sampling with No Shuffle")
-        S = sampling.sample_negative_no_shuffle(dataset.n_users, dataset.m_items,
-                                     dataset.trainDataSize, allPos, neg_ratio)
-    elif sample_ext and world.config["use_cpp"]:
-        # print("Using CPP Sampling with Shuffle")
-        S = sampling.sample_negative(dataset.n_users, dataset.m_items,
-                                     dataset.trainDataSize, allPos, neg_ratio)
+    if sample_ext and world.config["use_cpp"]:
+        if not world.config["sample_pos"]:
+            print("Sampling: All Positives")
+            S = sampling.get_train_data_all_pos(dataset.n_users, dataset.m_items,
+                                         dataset.trainDataSize, allPos, neg_ratio)
+        elif not world.config["shuffle_users"]:
+            print("Sampling: No Shuffle")
+            S = sampling.sample_negative_no_shuffle(dataset.n_users, dataset.m_items,
+                                         dataset.trainDataSize, allPos, neg_ratio)
+        else:
+            print("Sampling: CPP Vanilla")
+            S = sampling.sample_negative(dataset.n_users, dataset.m_items,
+                                         dataset.trainDataSize, allPos, neg_ratio)
     else:
-        # print("Using Python Sampling")
+        print("Sampling: Python")
         S = UniformSample_original_python(dataset)
     return S
 

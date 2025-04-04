@@ -45,6 +45,10 @@ class BasicDataset(Dataset):
         return NotImplementedError
     
     @property
+    def user_interaction_counts(self):
+        return NotImplementedError
+
+    @property
     def allPos(self):
         raise NotImplementedError
     
@@ -304,7 +308,7 @@ class Loader(BasicDataset):
 
         # assumes all users have training examples
         avg_pop_per_user = np.array([np.mean([self.items_D[item] for item in self._allPos[user]]) for user in range(self.n_user)])
-        self.niche_users = avg_pop_per_user < np.percentile(avg_pop_per_user, 20)
+        self.niche_users = avg_pop_per_user < np.percentile(avg_pop_per_user, 10)
 
         print(f"{world.dataset} is ready to go")
 
@@ -331,6 +335,10 @@ class Loader(BasicDataset):
     @property
     def item_popularities(self):
         return self.items_D
+    
+    @property
+    def user_interaction_counts(self):
+        return self.users_D
     
     def _split_A_hat(self,A):
         A_fold = []

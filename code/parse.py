@@ -20,6 +20,8 @@ def parse_args():
                         help="the learning rate")
     parser.add_argument('--decay', type=float,default=1e-4,
                         help="the weight decay for l2 normalizaton")
+    parser.add_argument('--degree_decay', type=float,default=1e-2,
+                        help="the regularization hyperparameter for degree-correction")
     parser.add_argument('--tau', type=float,default=10,
                         help="degre-correction regularization hyperparam")
     parser.add_argument('--dropout', type=int,default=0,
@@ -47,5 +49,9 @@ def parse_args():
     parser.add_argument('--model', type=str, default='lgn', help='rec-model, support [mf, lgn]')
     parser.add_argument('--use_cpp', type=int, default=0, help='whether to use cpp sampling')
     parser.add_argument('--shuffle_users', type=int, default=1, help='whether to shuffle users before batching')
+    parser.add_argument('--sample_pos', type=int, default=1, help='whether to sample the positive pairs for training samples')
     parser.add_argument('--item_pairs', type=int, default=1, help='number of item_pairs per user for degree correction')
+    parser.add_argument('--normalize_users', type=int, default=0, help='whether to normalize the bpr loss by user interaction count')
+    parser.add_argument('--normalize_items', type=int, default=0, help='whether to normalize the bpr loss by item interaction count')
+
     return parser.parse_args()

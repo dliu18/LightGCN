@@ -87,6 +87,43 @@ py::array_t<int> sample_negative_no_shuffle(int user_num, int item_num, int trai
     return S_array;
 }
 
+py::array_t<int> get_train_data_all_pos(int user_num, int item_num, int train_num, std::vector<std::vector<int>> allPos, int neg_num)
+{
+    int row = neg_num + 2;
+    py::array_t<int> S_array = py::array_t<int>({train_num, row});
+    py::buffer_info buf_S = S_array.request();
+    int *ptr = (int *)buf_S.ptr;
+
+    int index = 0;
+    for (int user = 0; user < user_num; user++)
+    {
+        std::vector<int> pos_items = allPos[user];
+
+        for (int pos : pos_items)
+        {
+            if (index >= train_num)  // Ensure we don't exceed train_num
+                break;
+
+            int negitem = 0;
+            ptr[index * row] = user;    // Store user ID
+            ptr[index * row + 1] = pos; // Store positive item
+
+            // Sample negative items
+            for (int neg_i = 2; neg_i < neg_num + 2; neg_i++)
+            {
+                do
+                {
+                    negitem = randint_(item_num);
+                } while (std::find(pos_items.begin(), pos_items.end(), negitem) != pos_items.end());
+                ptr[index * row + neg_i] = negitem;
+            }
+            index++;  // Move to the next row
+        }
+    }
+    return S_array;
+}
+
+
 py::array_t<int> sample_negative_ByUser(std::vector<int> users, int item_num, std::vector<std::vector<int>> allPos, int neg_num)
 {
     int row = neg_num + 2;
@@ -134,6 +171,8 @@ PYBIND11_MODULE(sampling, m)
     m.def("sample_negative", &sample_negative, "sampling negatives for all",
           "user_num"_a, "item_num"_a, "train_num"_a, "allPos"_a, "neg_num"_a);
     m.def("sample_negative_no_shuffle", &sample_negative_no_shuffle, "sampling negatives for all",
+          "user_num"_a, "item_num"_a, "train_num"_a, "allPos"_a, "neg_num"_a);
+    m.def("get_train_data_all_pos", &get_train_data_all_pos, "do not sample the pos pairs",
           "user_num"_a, "item_num"_a, "train_num"_a, "allPos"_a, "neg_num"_a);
     m.def("sample_negative_ByUser", &sample_negative_ByUser, "sampling negatives for given users",
           "users"_a, "item_num"_a, "allPos"_a, "neg_num"_a);
