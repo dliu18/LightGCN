@@ -49,13 +49,13 @@ def BPR_train_original(dataset, recommend_model, loss_class, epoch, neg_k=1, w=N
                                                    negItems,
                                                    batch_size=world.config['bpr_batch_size'])):
         results = bpr.stageOne(batch_users, batch_pos, batch_neg)
-        cri, num_item_pairs, low_pop_similarity = results["loss"], results["num item pairs"], results["avg low pop similarity"]
+        cri = results["loss"]
 
         aver_loss += cri
         if world.tensorboard:
             w.add_scalar(f'BPRLoss/BPR', cri, epoch * int(len(users) / world.config['bpr_batch_size']) + batch_i)
-            w.add_scalar(f'BPRLoss/Item Pairs', num_item_pairs, epoch * int(len(users) / world.config['bpr_batch_size']) + batch_i)
-            w.add_scalar(f'BPRLoss/Low Popularity Similarity', low_pop_similarity, epoch * int(len(users) / world.config['bpr_batch_size']) + batch_i)
+            # w.add_scalar(f'BPRLoss/Item Pairs', num_item_pairs, epoch * int(len(users) / world.config['bpr_batch_size']) + batch_i)
+            # w.add_scalar(f'BPRLoss/Low Popularity Similarity', low_pop_similarity, epoch * int(len(users) / world.config['bpr_batch_size']) + batch_i)
     aver_loss = aver_loss / total_batch
     time_info = timer.dict()
     timer.zero()

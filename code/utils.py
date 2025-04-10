@@ -46,23 +46,24 @@ class BPRLoss:
 
     def stageOne(self, users, pos, neg):
         loss, reg_loss = self.model.bpr_loss(users, pos, neg)
-        degree_coefs, item_similarities = self.model.degree_correction_loss(users, pos, neg, self.tau)
+        # degree_coefs, item_similarities = self.model.degree_correction_loss(users, pos, neg, self.tau)
         reg_loss = reg_loss*self.weight_decay
-        full_loss = loss + reg_loss + self.degree_decay * torch.dot(degree_coefs, F.relu(item_similarities))
-
+        # full_loss = loss + reg_loss + self.degree_decay * torch.dot(degree_coefs, F.relu(item_similarities))
+        full_loss = loss + reg_loss 
+        
         self.opt.zero_grad()
         full_loss.backward()
         self.opt.step()
 
-        degree_coefs = degree_coefs.detach().cpu().numpy()
-        item_similarities = np.array([sim.item() for sim in item_similarities.detach().cpu()])
+        # degree_coefs = degree_coefs.detach().cpu().numpy()
+        # item_similarities = np.array([sim.item() for sim in item_similarities.detach().cpu()])
         # print(item_similarities)
 
         original_loss = loss + reg_loss
         return {
                 "loss": original_loss.cpu().item(), 
-                "num item pairs": len(item_similarities),
-                "avg low pop similarity": np.mean(item_similarities[degree_coefs < np.percentile(degree_coefs, 10)])
+                # "num item pairs": len(item_similarities),
+                # "avg low pop similarity": np.mean(item_similarities[degree_coefs < np.percentile(degree_coefs, 10)])
             }
 
 

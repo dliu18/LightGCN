@@ -99,6 +99,7 @@ class LightGCN(BasicModel):
         self.n_layers = self.config['lightGCN_n_layers']
         self.keep_prob = self.config['keep_prob']
         self.A_split = self.config['A_split']
+        self.tau = self.config['tau']
         self.embedding_user = torch.nn.Embedding(
             num_embeddings=self.num_users, embedding_dim=self.latent_dim)
         self.embedding_item = torch.nn.Embedding(
@@ -250,19 +251,19 @@ class LightGCN(BasicModel):
         neg_scores = torch.mul(users_emb, neg_emb)
         neg_scores = torch.sum(neg_scores, dim=1)
         
-        item_popularity_coefs = torch.ones(len(users))
-        user_coefs = torch.ones(len(users))
+        item_popularity_coefs = torch.ones(len(users)).to(world.device)
+        user_coefs = torch.ones(len(users)).to(world.device)
 
         if world.config["normalize_users"]:
             interaction_counts = self.dataset.user_interaction_counts[users.cpu().numpy()]
             assert np.min(interaction_counts) > 0
-            user_coefs = torch.Tensor([1/sqrt(count) for count in interaction_counts]).to(world.device)
+            user_coefs = torch.Tensor([1/sqrt(count + self.tau) for count in interaction_counts]).to(world.device)
 
 
         if world.config["normalize_items"]:
             popularities = self.dataset.item_popularities[pos.cpu().numpy()]
             assert np.min(popularities) > 0
-            item_popularity_coefs = torch.Tensor([1/sqrt(pop) for pop in popularities]).to(world.device)
+            item_popularity_coefs = torch.Tensor([1/sqrt(pop + self.tau) for pop in popularities]).to(world.device)
 
         loss = torch.mean(user_coefs * item_popularity_coefs * torch.nn.functional.softplus(neg_scores - pos_scores))
         
