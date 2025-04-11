@@ -10,12 +10,12 @@ python read_models.py --decay=1e-4 --lr=0.001 --layer=3 --seed=2020 --dataset="y
 python read_models.py --decay=1e-4 --lr=0.001 --layer=3 --seed=2020 --dataset="amazon-book" --topks="[20]" --recdim=64
 ```
 
-python main.py --decay=1e-4 --lr=0.001 --layer=3 --seed=2020 --dataset="gowalla" --topks="[20, 1000]" --recdim=64 --tau=1 --use_cpp=1 \
+python main.py --decay=1e-4 --lr=0.001 --layer=3 --seed=2020 --dataset="gowalla" --topks="[20, 1000]" --recdim=64 --tau=0.5 --use_cpp=1 \
 --sample_pos=0 \
 --shuffle_users=1 \
---normalize_users=0 \
+--normalize_users=1 \
 --normalize_items=1 \
---comment="all_pos/tau/1"
+--comment="all_pos/norm_users_norm_items/tau/half"
 
 ## Assumptions
 
