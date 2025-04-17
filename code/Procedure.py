@@ -64,53 +64,72 @@ def BPR_train_original(dataset, recommend_model, loss_class, epoch, neg_k=1, w=N
 def test_one_batch(X):
     sorted_items = X[0].numpy()
     groundTrue = X[1]
-    is_niche_users = X[2]
+    quadrant_labels = X[2]
 
     r = utils.getLabel(groundTrue, sorted_items)
-    pre, recall, ndcg, pre_niche, recall_niche = [], [], [], [], []
+    pre, recall, ndcg = [], [], []
+    quadrant_recalls = [[], [], [], []]
+
     for k in world.topks[:-1]:
         # all users
         ret = utils.RecallPrecision_ATk(groundTrue, r, k)
         pre.append(ret['precision'])
         recall.append(ret['recall'])
 
-        if np.sum(is_niche_users) > 0:
-            ret = utils.RecallPrecision_ATk(groundTrue[is_niche_users], r[is_niche_users], k)
-            pre_niche.append(ret['precision'])
-            recall_niche.append(ret['recall'])
-        else:
-            pre_niche.append(0)
-            recall_niche.append(0)
+        for quadrant_idx in range(len(quadrant_labels)):
+            user_labels = quadrant_labels[quadrant_idx]
+            if np.sum(user_labels) > 0:
+                ret = utils.RecallPrecision_ATk(groundTrue[user_labels], r[user_labels], k)
+                quadrant_recalls[quadrant_idx].append(ret['recall'])
+            else:
+                quadrant_recalls[quadrant_idx].append(0.0)  
 
         ndcg.append(utils.NDCGatK_r(groundTrue,r,k))
     return {'recall':np.array(recall), 
             'precision':np.array(pre),
-            'niche recall': np.array(recall_niche),
-            'niche precision': np.array(pre_niche), 
-            'ndcg':np.array(ndcg)}
+            'ndcg':np.array(ndcg),
+            'low_low_recall': np.array(quadrant_recalls[0]),
+            'low_high_recall': np.array(quadrant_recalls[1]),
+            'high_low_recall': np.array(quadrant_recalls[2]),
+            'high_high_recall': np.array(quadrant_recalls[3]),
+            }
         
 def popularity_opportunity_one_batch(X):
     sorted_items_batch = X[0].numpy()
     groundTrue_batch = X[1]
+    quadrant_labels = X[2]
 
     max_k = world.topks[-1]
-    item_freqs_and_ranks = {}
-    for idx in range(len(sorted_items_batch)):
-        groundTrue = groundTrue_batch[idx]
-        sorted_items = sorted_items_batch[idx]
+    agg_item_freqs_and_ranks = {}
+    sub_item_freqs_and_ranks = [{}] * len(quadrant_labels)
+
+    for user_idx in range(len(sorted_items_batch)):
+        groundTrue = groundTrue_batch[user_idx]
+        sorted_items = sorted_items_batch[user_idx]
+
+        actual_subgroup_idx = -1
+        for candidate_subgroup_idx, labels in enumerate(quadrant_labels):
+            if labels[user_idx] > 0:
+                actual_subgroup_idx = candidate_subgroup_idx
+                break
+        assert actual_subgroup_idx >= 0
 
         pred_ranks = np.array([
             np.where(sorted_items == item)[0][0] + 1 \
                 if item in sorted_items else max_k \
                 for item in groundTrue
         ])
+        for item_idx, item in enumerate(groundTrue):
+            if item not in agg_item_freqs_and_ranks:
+                agg_item_freqs_and_ranks[item] = [0, 0]
+            if item not in sub_item_freqs_and_ranks[actual_subgroup_idx]:
+                sub_item_freqs_and_ranks[actual_subgroup_idx][item] = [0, 0]
+            agg_item_freqs_and_ranks[item][0] += 1
+            agg_item_freqs_and_ranks[item][1] += pred_ranks[item_idx]
+            sub_item_freqs_and_ranks[actual_subgroup_idx][item][0] += 1
+            sub_item_freqs_and_ranks[actual_subgroup_idx][item][1] += pred_ranks[item_idx]
 
-        for idx, item in enumerate(groundTrue):
-            if item not in item_freqs_and_ranks:
-                item_freqs_and_ranks[item] = [0, 0]
-            item_freqs_and_ranks[item][0] += 1
-            item_freqs_and_ranks[item][1] += pred_ranks[idx]
-    return item_freqs_and_ranks
+    return [agg_item_freqs_and_ranks, sub_item_freqs_and_ranks]
 
 
 def gini_coef_one_batch(X):
@@ -139,9 +158,11 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0):
     results = {
                 'precision': np.zeros(len(world.topks) - 1),
                 'recall': np.zeros(len(world.topks) - 1),
-                'niche precision': np.zeros(len(world.topks) - 1),
-                'niche recall': np.zeros(len(world.topks) - 1),
-                'ndcg': np.zeros(len(world.topks) - 1)
+                'ndcg': np.zeros(len(world.topks) - 1),
+                'low_low_recall': np.zeros(len(world.topks) - 1),
+                'low_high_recall': np.zeros(len(world.topks) - 1),
+                'high_low_recall': np.zeros(len(world.topks) - 1),
+                'high_high_recall': np.zeros(len(world.topks) - 1) #this could be re-written for general groups
             }
     with torch.no_grad():
         users = list(testDict.keys())
@@ -149,9 +170,11 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0):
             assert u_batch_size <= len(users) / 10
         except AssertionError:
             print(f"test_u_batch_size is too big for this dataset, try a small one {len(users) // 10}")
-        is_niche_users = []
+       
+        user_quadrant_labels = dataset.user_quadrant_labels
         rating_list = []
         groundTrue_list = []
+        quadrant_labels_list = []
         # auc_record = []
         # ratings = []
         total_batch = len(users) // u_batch_size + 1
@@ -178,11 +201,10 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0):
             #     ]
             # auc_record.extend(aucs)
             del rating
-            is_niche_users.append(dataset.is_niche_user(batch_users))
             rating_list.append(rating_K.cpu())
             groundTrue_list.append(groundTrue)
-        assert total_batch == len(is_niche_users)
-        X = zip(rating_list, groundTrue_list, is_niche_users)
+            quadrant_labels_list.append([user_quadrant_labels[quadrant_idx][batch_users] for quadrant_idx in range(len(user_quadrant_labels))])
+        X = zip(rating_list, groundTrue_list, quadrant_labels_list)
         if multicore == 1:
             pre_results = pool.map(test_one_batch, X)
             gini_coef_batches = pool.map(gini_coef_one_batch, X)
@@ -198,49 +220,93 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0):
         for result in pre_results:
             results['recall'] += result['recall']
             results['precision'] += result['precision']
-            results['niche recall'] += result['niche recall']
-            results['niche precision'] += result['niche precision']
             results['ndcg'] += result['ndcg']
+            results['low_low_recall'] += result['low_low_recall']
+            results['low_high_recall'] += result['low_high_recall']
+            results['high_low_recall'] += result['high_low_recall']
+            results['high_high_recall'] += result['high_high_recall']
+
         num_niche_users = np.sum(dataset.is_niche_user(users))
         results['recall'] /= float(len(users))
-        results['precision'] /= float(len(users))
-        results['niche recall'] /= float(num_niche_users)
-        results['niche precision'] /= float(num_niche_users)        
+        results['precision'] /= float(len(users))       
         results['ndcg'] /= float(len(users))
+        results['low_low_recall'] /= float(np.sum(user_quadrant_labels[0]))
+        results['low_high_recall'] /= float(np.sum(user_quadrant_labels[1]))
+        results['high_low_recall'] /= float(np.sum(user_quadrant_labels[2]))
+        results['high_high_recall'] /= float(np.sum(user_quadrant_labels[3]))
         # results['auc'] = np.mean(auc_record)
-
-        item_freqs_and_ranks = {item: [0, 0] for item in range(dataset.m_items)}
-        for item_freqs_and_ranks_batch in popularity_opportunity_batches:
-            for item in item_freqs_and_ranks_batch:
-                item_freqs_and_ranks[item][0] += item_freqs_and_ranks_batch[item][0]
-                item_freqs_and_ranks[item][1] += item_freqs_and_ranks_batch[item][1]
-        # compute avg rank 
-        avg_ranks = np.array([item_freqs_and_ranks[item][1] / item_freqs_and_ranks[item][0] \
-            if item_freqs_and_ranks[item][0] > 0 else -1 for item in range(dataset.m_items)])
 
         item_freq_in_predictions = {item: 0 for item in range(dataset.m_items)}
         for item_freq_in_predictions_batch in gini_coef_batches:
             for item in item_freq_in_predictions_batch:
                 item_freq_in_predictions[item] += item_freq_in_predictions_batch[item]
         item_ratios = np.array([item_freq_in_predictions[item] / (dataset.n_users * world.topks[0]) for item in range(dataset.m_items)])
-        
-        # gini coefficient 
-
-        # popularity-opportunity bias 
         results["gini-index"] = utils.gini_index(dataset.item_popularities, item_ratios)
-        results["popularity-opportunity-bias"] = utils.pop_opp_bias(dataset.item_popularities, avg_ranks)
+
+        def _extract_avg_ranks(popularity_opportunity_batches):
+            avg_ranks = []
+            label_names = ["agg", "low_low", "low_high", "high_low", "high_high"]
+
+            ## Agg
+            item_freqs_and_ranks = {item: [0, 0] for item in range(dataset.m_items)}
+            for popularity_opportunity_batch in popularity_opportunity_batches:
+                item_freqs_and_ranks_batch = popularity_opportunity_batch[0]
+                for item in item_freqs_and_ranks_batch:
+                    item_freqs_and_ranks[item][0] += item_freqs_and_ranks_batch[item][0]
+                    item_freqs_and_ranks[item][1] += item_freqs_and_ranks_batch[item][1]
+            # compute avg rank 
+            agg_avg_ranks = np.array([item_freqs_and_ranks[item][1] / item_freqs_and_ranks[item][0] \
+                if item_freqs_and_ranks[item][0] > 0 else -1 for item in range(dataset.m_items)])
+            avg_ranks.append(agg_avg_ranks)
+
+            for subgroup_idx in range(len(label_names) - 1):
+                item_freqs_and_ranks = {item: [0, 0] for item in range(dataset.m_items)}
+                for popularity_opportunity_batch in popularity_opportunity_batches:
+                    item_freqs_and_ranks_batch = popularity_opportunity_batch[1][subgroup_idx]
+                    for item in item_freqs_and_ranks_batch:
+                        item_freqs_and_ranks[item][0] += item_freqs_and_ranks_batch[item][0]
+                        item_freqs_and_ranks[item][1] += item_freqs_and_ranks_batch[item][1]
+                # compute avg rank 
+                subgroup_avg_ranks = np.array([item_freqs_and_ranks[item][1] / item_freqs_and_ranks[item][0] \
+                    if item_freqs_and_ranks[item][0] > 0 else -1 for item in range(dataset.m_items)])
+                avg_ranks.append(subgroup_avg_ranks)
+
+            ## Subgroups
+            return label_names, avg_ranks
+
+        label_names, extracted_avg_ranks = _extract_avg_ranks(popularity_opportunity_batches)
+        for idx in range(len(label_names)):
+            avg_ranks = extracted_avg_ranks[idx]
+            results[f"{label_names[idx]}_popularity-opportunity-bias"] = utils.pop_opp_bias(
+                dataset.item_popularities[avg_ranks > 0],
+                avg_ranks[avg_ranks > 0])
+
+            if world.tensorboard:
+                w.add_scalar(
+                    f'Test/Quadrants/Popularity Opportunity Bias@{world.topks[0]}',
+                    results[f"{label_names[0]}_popularity-opportunity-bias"],
+                    epoch
+                )
+
         if world.tensorboard:
             w.add_scalars(f'Test/Recall@{world.topks}',
                           {str(world.topks[i]): results['recall'][i] for i in range(len(world.topks) - 1)}, epoch)
             w.add_scalars(f'Test/Precision@{world.topks}',
                           {str(world.topks[i]): results['precision'][i] for i in range(len(world.topks) - 1)}, epoch)
-            w.add_scalars(f'Test/Niche Recall@{world.topks}',
-                          {str(world.topks[i]): results['niche recall'][i] for i in range(len(world.topks) - 1)}, epoch)
-            w.add_scalars(f'Test/Niche Precision@{world.topks}',
-                          {str(world.topks[i]): results['niche precision'][i] for i in range(len(world.topks) - 1)}, epoch)
             w.add_scalars(f'Test/NDCG@{world.topks}',
                           {str(world.topks[i]): results['ndcg'][i] for i in range(len(world.topks) - 1)}, epoch)
             
+            
+            # recall by quadrant
+            w.add_scalars(f'Test/Quadrants/Low_Low_Recall@{world.topks}',
+                          {str(world.topks[i]): results['low_low_recall'][i] for i in range(len(world.topks) - 1)}, epoch)
+            w.add_scalars(f'Test/Quadrants/Low_High_Recall@{world.topks}',
+                          {str(world.topks[i]): results['low_high_recall'][i] for i in range(len(world.topks) - 1)}, epoch)
+            w.add_scalars(f'Test/Quadrants/High_Low_Recall@{world.topks}',
+                          {str(world.topks[i]): results['high_low_recall'][i] for i in range(len(world.topks) - 1)}, epoch)
+            w.add_scalars(f'Test/Quadrants/High_High_Recall@{world.topks}',
+                          {str(world.topks[i]): results['high_high_recall'][i] for i in range(len(world.topks) - 1)}, epoch)
+           
             # popularity-bias metrics
             w.add_scalar(
                 f'Test/Gini@{world.topks[0]}',
@@ -250,9 +316,12 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0):
 
             w.add_scalar(
                 f'Test/Popularity Opportunity Bias@{world.topks[0]}',
-                results["popularity-opportunity-bias"],
+                results["agg_popularity-opportunity-bias"],
                 epoch
             )
+
+            # popularity opportunity bias by quadrant
+
 
         if multicore == 1:
             pool.close()

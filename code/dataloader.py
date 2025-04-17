@@ -51,6 +51,19 @@ class BasicDataset(Dataset):
     @property
     def allPos(self):
         raise NotImplementedError
+
+    @property
+    def user_quadrant_labels(self):
+        '''
+        returns a tuple of four binary lists corresponding to four quadrants of users.
+        each list is a binary membership array for a quadrant.
+        the quadrants, in order, are:
+            1. low (below avg.) user interactions & low avg. item popularity
+            2. low (below avg.) user interactions & high avg. item popularity
+            3. high user interactions & low avg. item popularity
+            4. high user interactions & high avg. item popularity
+        '''
+        raise NotImplementedError
     
     def getUserItemFeedback(self, users, items):
         raise NotImplementedError
@@ -80,6 +93,7 @@ class BasicDataset(Dataset):
             Given a list of user indices, returns a binary list of the same length where the entry denotes whether the user is a niche user.
         '''
         raise NotImplementedError
+
 
 class LastFM(BasicDataset):
     """
@@ -306,9 +320,24 @@ class Loader(BasicDataset):
         self._allPos = self.getUserPosItems(list(range(self.n_user)))
         self.__testDict = self.__build_test()
 
-        # assumes all users have training examples
+        # verify that every user and item is represented in the training data.
+        assert len(self.users_D) == self.n_user
+        assert len(self.items_D) == self.m_item
+
         avg_pop_per_user = np.array([np.mean([self.items_D[item] for item in self._allPos[user]]) for user in range(self.n_user)])
-        self.niche_users = avg_pop_per_user < np.percentile(avg_pop_per_user, 10)
+        median_pop_per_user = np.array([np.median([self.items_D[item] for item in self._allPos[user]]) for user in range(self.n_user)])
+        self.niche_users = avg_pop_per_user < np.percentile(avg_pop_per_user, 10) # not really used anymore
+
+
+        # define four user label lists corresponding to the four quadrants 
+        is_low_interaction_low_pop = (self.users_D <= np.mean(self.users_D)) & (median_pop_per_user <= np.mean(median_pop_per_user))
+        is_low_interaction_high_pop = (self.users_D <= np.mean(self.users_D)) & (median_pop_per_user > np.mean(median_pop_per_user))
+        is_high_interaction_low_pop = (self.users_D > np.mean(self.users_D)) & (median_pop_per_user <= np.mean(median_pop_per_user))
+        is_high_interaction_high_pop = (self.users_D > np.mean(self.users_D)) & (median_pop_per_user > np.mean(median_pop_per_user))
+
+        assert np.all(is_low_interaction_low_pop | is_low_interaction_high_pop | is_high_interaction_low_pop | is_high_interaction_high_pop)
+        self._user_quadrant_labels = (is_low_interaction_low_pop, is_low_interaction_high_pop, is_high_interaction_low_pop, is_high_interaction_high_pop)
+
 
         print(f"{world.dataset} is ready to go")
 
@@ -339,6 +368,11 @@ class Loader(BasicDataset):
     @property
     def user_interaction_counts(self):
         return self.users_D
+
+    @property
+    def user_quadrant_labels(self):
+        return self._user_quadrant_labels
+    
     
     def _split_A_hat(self,A):
         A_fold = []

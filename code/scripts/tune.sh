@@ -7,11 +7,11 @@ BASE_CMD="python main.py --decay=1e-4 --lr=0.001 --layer=3 --seed=2020 --epochs=
 
 # Define trials
 declare -a TRIALS=(
-    "sample_pos=1 normalize_items=0 tau=0"
-    "sample_pos=1 normalize_items=1 tau=0"
-    "sample_pos=1 normalize_items=1 tau=1"
-    "sample_pos=0 normalize_items=0 tau=0"
-    "sample_pos=0 normalize_items=1 tau=0"
+    # "sample_pos=1 normalize_items=0 tau=0"
+    # "sample_pos=1 normalize_items=1 tau=0"
+    # "sample_pos=1 normalize_items=1 tau=1"
+    # "sample_pos=0 normalize_items=0 tau=0"
+    # "sample_pos=0 normalize_items=1 tau=0"
     "sample_pos=0 normalize_items=1 tau=1"
 )
 
