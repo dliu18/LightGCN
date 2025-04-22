@@ -84,7 +84,7 @@ def UniformSample_original(dataset, neg_ratio = 1):
         else:
             print("Sampling: CPP Vanilla")
             S = sampling.sample_negative(dataset.n_users, dataset.m_items,
-                                         dataset.trainDataSize, allPos, neg_ratio)
+                                         dataset.trainDataSize, allPos, neg_ratio, alpha=world.config["alpha"])
     else:
         print("Sampling: Python")
         S = UniformSample_original_python(dataset)

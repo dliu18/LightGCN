@@ -12,6 +12,8 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Go lightGCN")
     parser.add_argument('--bpr_batch', type=int,default=2048,
                         help="the batch size for bpr loss training procedure")
+    parser.add_argument('--test_interval', type=int,default=10,
+                        help="how frequently (epochs) to evaluate")
     parser.add_argument('--recdim', type=int,default=64,
                         help="the embedding size of lightGCN")
     parser.add_argument('--layer', type=int,default=3,
@@ -50,6 +52,8 @@ def parse_args():
     parser.add_argument('--use_cpp', type=int, default=0, help='whether to use cpp sampling')
     parser.add_argument('--shuffle_users', type=int, default=1, help='whether to shuffle users before batching')
     parser.add_argument('--sample_pos', type=int, default=1, help='whether to sample the positive pairs for training samples')
+    parser.add_argument('--alpha', type=float,default=0.0,
+                        help="the number of training samples for a user is proportional to degree^alpha") 
     parser.add_argument('--item_pairs', type=int, default=1, help='number of item_pairs per user for degree correction')
     parser.add_argument('--normalize_users', type=int, default=0, help='whether to normalize the bpr loss by user interaction count')
     parser.add_argument('--normalize_items', type=int, default=0, help='whether to normalize the bpr loss by item interaction count')

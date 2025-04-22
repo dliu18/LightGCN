@@ -101,8 +101,9 @@ def popularity_opportunity_one_batch(X):
 
     max_k = world.topks[-1]
     agg_item_freqs_and_ranks = {}
-    sub_item_freqs_and_ranks = [{}] * len(quadrant_labels)
-
+    sub_item_freqs_and_ranks = []
+    for _ in range(len(quadrant_labels)):
+        sub_item_freqs_and_ranks.append({})
     for user_idx in range(len(sorted_items_batch)):
         groundTrue = groundTrue_batch[user_idx]
         sorted_items = sorted_items_batch[user_idx]
@@ -145,10 +146,12 @@ def gini_coef_one_batch(X):
             item_freq_in_predictions[item] += 1
     return item_freq_in_predictions
 
-def Test(dataset, Recmodel, epoch, w=None, multicore=0):
+def Test(dataset, Recmodel, epoch, w=None, multicore=0, is_test=True):
     u_batch_size = world.config['test_u_batch_size']
+    label = "Test" if is_test else "Train"
     dataset: utils.BasicDataset
     testDict: dict = dataset.testDict
+    trainDict: dict = dataset.trainDict
     Recmodel: model.LightGCN
     # eval mode with no dropout
     Recmodel = Recmodel.eval()
@@ -166,6 +169,8 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0):
             }
     with torch.no_grad():
         users = list(testDict.keys())
+        if not is_test:
+            users = list(trainDict.keys())
         try:
             assert u_batch_size <= len(users) / 10
         except AssertionError:
@@ -181,17 +186,21 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0):
         for batch_users in utils.minibatch(users, batch_size=u_batch_size):
             allPos = dataset.getUserPosItems(batch_users)
             groundTrue = np.array([testDict[u] for u in batch_users], dtype=object)
+            if not is_test:
+                groundTrue = np.array([trainDict[u] for u in batch_users], dtype=object)
             batch_users_gpu = torch.Tensor(batch_users).long()
             batch_users_gpu = batch_users_gpu.to(world.device)
 
             rating = Recmodel.getUsersRating(batch_users_gpu)
             #rating = rating.cpu()
-            exclude_index = []
-            exclude_items = []
-            for range_i, items in enumerate(allPos):
-                exclude_index.extend([range_i] * len(items))
-                exclude_items.extend(items)
-            rating[exclude_index, exclude_items] = -(1<<10)
+
+            if is_test:
+                exclude_index = []
+                exclude_items = []
+                for range_i, items in enumerate(allPos):
+                    exclude_index.extend([range_i] * len(items))
+                    exclude_items.extend(items)
+                rating[exclude_index, exclude_items] = -(1<<10)
             _, rating_K = torch.topk(rating, k=max_K)
             rating = rating.cpu().numpy()
             # aucs = [ 
@@ -281,47 +290,45 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0):
                 dataset.item_popularities[avg_ranks > 0],
                 avg_ranks[avg_ranks > 0])
 
-            if world.tensorboard:
+            if is_test and world.tensorboard:
                 w.add_scalar(
-                    f'Test/Quadrants/Popularity Opportunity Bias@{world.topks[0]}',
-                    results[f"{label_names[0]}_popularity-opportunity-bias"],
+                    f'Quadrants/{label_names[idx]}_Popularity Opportunity Bias@{world.topks[0]}',
+                    results[f"{label_names[idx]}_popularity-opportunity-bias"],
                     epoch
                 )
 
         if world.tensorboard:
-            w.add_scalars(f'Test/Recall@{world.topks}',
+            w.add_scalars(f'{label}/Recall@{world.topks}',
                           {str(world.topks[i]): results['recall'][i] for i in range(len(world.topks) - 1)}, epoch)
-            w.add_scalars(f'Test/Precision@{world.topks}',
+            w.add_scalars(f'{label}/Precision@{world.topks}',
                           {str(world.topks[i]): results['precision'][i] for i in range(len(world.topks) - 1)}, epoch)
-            w.add_scalars(f'Test/NDCG@{world.topks}',
+            w.add_scalars(f'{label}/NDCG@{world.topks}',
                           {str(world.topks[i]): results['ndcg'][i] for i in range(len(world.topks) - 1)}, epoch)
             
             
             # recall by quadrant
-            w.add_scalars(f'Test/Quadrants/Low_Low_Recall@{world.topks}',
-                          {str(world.topks[i]): results['low_low_recall'][i] for i in range(len(world.topks) - 1)}, epoch)
-            w.add_scalars(f'Test/Quadrants/Low_High_Recall@{world.topks}',
-                          {str(world.topks[i]): results['low_high_recall'][i] for i in range(len(world.topks) - 1)}, epoch)
-            w.add_scalars(f'Test/Quadrants/High_Low_Recall@{world.topks}',
-                          {str(world.topks[i]): results['high_low_recall'][i] for i in range(len(world.topks) - 1)}, epoch)
-            w.add_scalars(f'Test/Quadrants/High_High_Recall@{world.topks}',
-                          {str(world.topks[i]): results['high_high_recall'][i] for i in range(len(world.topks) - 1)}, epoch)
-           
+            if is_test:
+                w.add_scalars(f'Quadrants/Low_Low_Recall@{world.topks}',
+                              {str(world.topks[i]): results['low_low_recall'][i] for i in range(len(world.topks) - 1)}, epoch)
+                w.add_scalars(f'Quadrants/Low_High_Recall@{world.topks}',
+                              {str(world.topks[i]): results['low_high_recall'][i] for i in range(len(world.topks) - 1)}, epoch)
+                w.add_scalars(f'Quadrants/High_Low_Recall@{world.topks}',
+                              {str(world.topks[i]): results['high_low_recall'][i] for i in range(len(world.topks) - 1)}, epoch)
+                w.add_scalars(f'Quadrants/High_High_Recall@{world.topks}',
+                              {str(world.topks[i]): results['high_high_recall'][i] for i in range(len(world.topks) - 1)}, epoch)
+               
             # popularity-bias metrics
             w.add_scalar(
-                f'Test/Gini@{world.topks[0]}',
+                f'{label}/Gini@{world.topks[0]}',
                 results["gini-index"],
                 epoch
             )
 
             w.add_scalar(
-                f'Test/Popularity Opportunity Bias@{world.topks[0]}',
+                f'{label}/Popularity Opportunity Bias@{world.topks[0]}',
                 results["agg_popularity-opportunity-bias"],
                 epoch
             )
-
-            # popularity opportunity bias by quadrant
-
 
         if multicore == 1:
             pool.close()

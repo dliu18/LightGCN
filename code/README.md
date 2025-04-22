@@ -21,3 +21,6 @@ python main.py --decay=1e-4 --lr=0.001 --layer=3 --seed=2020 --dataset="gowalla"
 
 Assumes that the training and testing data have interactions for each user.
 The user ids are exactly {0, ..., n_user - 1} with no ommissions
+
+The high high group is interesting: normalizing items improved performance 
+The high low group: let's see what normalizing users does? It appears that including all positives helped?

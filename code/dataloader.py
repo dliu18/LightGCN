@@ -41,6 +41,10 @@ class BasicDataset(Dataset):
         raise NotImplementedError
     
     @property
+    def trainDict(self):
+        raise NotImplementedError
+
+    @property
     def item_popularities(self):
         return NotImplementedError
     
@@ -318,11 +322,13 @@ class Loader(BasicDataset):
         # self.items_D[self.items_D == 0.] = 1.
         # pre-calculate
         self._allPos = self.getUserPosItems(list(range(self.n_user)))
+        self.__trainDict = self.__build_train()
         self.__testDict = self.__build_test()
 
         # verify that every user and item is represented in the training data.
-        assert len(self.users_D) == self.n_user
-        assert len(self.items_D) == self.m_item
+        assert np.sum(self.users_D > 0) == self.n_user
+        assert np.sum(self.items_D > 0) == self.m_item
+        assert len(testUniqueUsers) == self.n_user
 
         avg_pop_per_user = np.array([np.mean([self.items_D[item] for item in self._allPos[user]]) for user in range(self.n_user)])
         median_pop_per_user = np.array([np.median([self.items_D[item] for item in self._allPos[user]]) for user in range(self.n_user)])
@@ -356,6 +362,10 @@ class Loader(BasicDataset):
     @property
     def testDict(self):
         return self.__testDict
+
+    @property
+    def trainDict(self):
+        return self.__trainDict
 
     @property
     def allPos(self):
@@ -446,6 +456,20 @@ class Loader(BasicDataset):
             else:
                 test_data[user] = [item]
         return test_data
+
+    def __build_train(self):
+        """
+        return:
+            dict: {user: [items]}
+        """
+        train_data = {}
+        for i, item in enumerate(self.trainItem):
+            user = self.trainUser[i]
+            if train_data.get(user):
+                train_data[user].append(item)
+            else:
+                train_data[user] = [item]
+        return train_data
 
     def getUserItemFeedback(self, users, items):
         """

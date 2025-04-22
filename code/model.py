@@ -257,7 +257,7 @@ class LightGCN(BasicModel):
         if world.config["normalize_users"]:
             interaction_counts = self.dataset.user_interaction_counts[users.cpu().numpy()]
             assert np.min(interaction_counts) > 0
-            user_coefs = torch.Tensor([1/sqrt(count + self.tau) for count in interaction_counts]).to(world.device)
+            user_coefs = torch.Tensor([1/(count + self.tau) for count in interaction_counts]).to(world.device)
 
 
         if world.config["normalize_items"]:

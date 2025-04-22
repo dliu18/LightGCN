@@ -24,36 +24,62 @@ int randint_(int end)
     return rand() % end;
 }
 
-py::array_t<int> sample_negative(int user_num, int item_num, int train_num, std::vector<std::vector<int>> allPos, int neg_num)
+py::array_t<int> sample_negative(int user_num, int item_num, int train_num, std::vector<std::vector<int>> allPos, int neg_num, double alpha = 0.0)
 {
-    int perUserNum = (train_num / user_num);
     int row = neg_num + 2;
-    py::array_t<int> S_array = py::array_t<int>({user_num * perUserNum, row});
+
+    // Compute user weights proportional to degree^alpha
+    std::vector<double> weights(user_num);
+    double total_weight = 0.0;
+    for (int user = 0; user < user_num; user++)
+    {
+        double degree = static_cast<double>(allPos[user].size());
+        weights[user] = pow(degree, alpha);
+        total_weight += weights[user];
+    }
+
+    // Determine number of samples per user
+    std::vector<int> samples_per_user(user_num, 0);
+    int total_samples = 0;
+    for (int user = 0; user < user_num; user++)
+    {
+        samples_per_user[user] = static_cast<int>(round(train_num * (weights[user] / total_weight)));
+        total_samples += samples_per_user[user];
+    }
+
+    // Allocate training array based on actual total_samples
+    py::array_t<int> S_array = py::array_t<int>({total_samples, row});
     py::buffer_info buf_S = S_array.request();
     int *ptr = (int *)buf_S.ptr;
 
+    // Fill training data
+    int sample_index = 0;
     for (int user = 0; user < user_num; user++)
     {
-        std::vector<int> pos_item = allPos[user];
+        const std::vector<int> &pos_item = allPos[user];
+        if (pos_item.empty()) continue;
 
-        for (int pair_i = 0; pair_i < perUserNum; pair_i++)
+        for (int pair_i = 0; pair_i < samples_per_user[user]; pair_i++)
         {
-            int negitem = 0;
-            ptr[(user * perUserNum + pair_i) * row] = user;
-            ptr[(user * perUserNum + pair_i) * row + 1] = pos_item[randint_(pos_item.size())];
-            for (int index = 2; index < neg_num + 2; index++)
+            ptr[sample_index * row] = user;
+            ptr[sample_index * row + 1] = pos_item[randint_(pos_item.size())];
+
+            for (int index = 2; index < row; index++)
             {
-                do
-                {
+                int negitem;
+                do {
                     negitem = randint_(item_num);
-                } while (
-                    find(pos_item.begin(), pos_item.end(), negitem) != pos_item.end());
-                ptr[(user * perUserNum + pair_i) * row + index] = negitem;
+                } while (find(pos_item.begin(), pos_item.end(), negitem) != pos_item.end());
+
+                ptr[sample_index * row + index] = negitem;
             }
+            sample_index++;
         }
     }
+
     return S_array;
 }
+
 
 py::array_t<int> sample_negative_no_shuffle(int user_num, int item_num, int train_num, std::vector<std::vector<int>> allPos, int neg_num)
 {
@@ -166,14 +192,19 @@ PYBIND11_MODULE(sampling, m)
     srand(time(0));
     // srand(2020);
     m.doc() = "example plugin";
+
     m.def("randint", &randint_, "generate int between [0 end]", "end"_a);
     m.def("seed", &set_seed, "set random seed", "seed"_a);
+
     m.def("sample_negative", &sample_negative, "sampling negatives for all",
-          "user_num"_a, "item_num"_a, "train_num"_a, "allPos"_a, "neg_num"_a);
+          "user_num"_a, "item_num"_a, "train_num"_a, "allPos"_a, "neg_num"_a, "alpha"_a = 0.0);
+
     m.def("sample_negative_no_shuffle", &sample_negative_no_shuffle, "sampling negatives for all",
           "user_num"_a, "item_num"_a, "train_num"_a, "allPos"_a, "neg_num"_a);
+
     m.def("get_train_data_all_pos", &get_train_data_all_pos, "do not sample the pos pairs",
           "user_num"_a, "item_num"_a, "train_num"_a, "allPos"_a, "neg_num"_a);
+
     m.def("sample_negative_ByUser", &sample_negative_ByUser, "sampling negatives for given users",
           "users"_a, "item_num"_a, "allPos"_a, "neg_num"_a);
 }
