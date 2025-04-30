@@ -46,6 +46,8 @@ class PureMF(BasicModel):
         self.num_users  = dataset.n_users
         self.num_items  = dataset.m_items
         self.latent_dim = config['latent_dim_rec']
+        self.dataset : dataloader.BasicDataset = dataset
+        self.tau = config['tau']
         self.f = nn.Sigmoid()
         self.__init_weight()
         
@@ -69,10 +71,32 @@ class PureMF(BasicModel):
         neg_emb   = self.embedding_item(neg.long())
         pos_scores= torch.sum(users_emb*pos_emb, dim=1)
         neg_scores= torch.sum(users_emb*neg_emb, dim=1)
-        loss = torch.mean(nn.functional.softplus(neg_scores - pos_scores))
+        # loss = torch.mean(nn.functional.softplus(neg_scores - pos_scores))
         reg_loss = (1/2)*(users_emb.norm(2).pow(2) + 
                           pos_emb.norm(2).pow(2) + 
                           neg_emb.norm(2).pow(2))/float(len(users))
+
+
+        item_popularity_coefs = torch.ones(len(users)).to(world.device)
+        user_coefs = torch.ones(len(users)).to(world.device)
+
+        if world.config["normalize_users"]:
+            interaction_counts = self.dataset.user_interaction_counts[users.cpu().numpy()]
+            assert np.min(interaction_counts) > 0
+            user_coefs = torch.Tensor([1/(count + self.tau) for count in interaction_counts]).to(world.device)
+
+        if world.config["normalize_items"]:
+            popularities = self.dataset.item_popularities[pos.cpu().numpy()]
+            assert np.min(popularities) > 0
+            item_popularity_coefs = torch.Tensor([1/sqrt(pop + self.tau) for pop in popularities]).to(world.device)
+
+        if world.config["beta"] != 0:
+            popularities = self.dataset.item_popularities[pos.cpu().numpy()]
+            assert np.min(popularities) > 0
+            item_popularity_coefs = torch.Tensor([pop**world.config["beta"] for pop in popularities]).to(world.device)
+
+        loss = torch.mean(user_coefs * item_popularity_coefs * torch.nn.functional.softplus(neg_scores - pos_scores))
+
         return loss, reg_loss
         
     def forward(self, users, items):
@@ -264,6 +288,11 @@ class LightGCN(BasicModel):
             popularities = self.dataset.item_popularities[pos.cpu().numpy()]
             assert np.min(popularities) > 0
             item_popularity_coefs = torch.Tensor([1/sqrt(pop + self.tau) for pop in popularities]).to(world.device)
+
+        if world.config["beta"] != 0:
+            popularities = self.dataset.item_popularities[pos.cpu().numpy()]
+            assert np.min(popularities) > 0
+            item_popularity_coefs = torch.Tensor([pop**world.config["beta"] for pop in popularities]).to(world.device)
 
         loss = torch.mean(user_coefs * item_popularity_coefs * torch.nn.functional.softplus(neg_scores - pos_scores))
         

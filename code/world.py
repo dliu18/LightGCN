@@ -35,9 +35,12 @@ all_models  = ['mf', 'lgn']
 # config['batch_size'] = 4096
 config['bpr_batch_size'] = args.bpr_batch
 config["test_interval"] = args.test_interval
+
+# SAMPLING
 config["use_cpp"] = args.use_cpp
 config["shuffle_users"] = args.shuffle_users > 0
 config["sample_pos"] = args.sample_pos > 0
+
 config['latent_dim_rec'] = args.recdim
 config['lightGCN_n_layers']= args.layer
 config['dropout'] = args.dropout
@@ -48,11 +51,16 @@ config['multicore'] = args.multicore
 config['lr'] = args.lr
 config['decay'] = args.decay
 config['degree decay']=args.degree_decay
+
+# NORMALIZATION
 config['alpha'] = args.alpha
+config['beta'] = args.beta 
+
 config['tau'] = args.tau
 config['item pairs'] = args.item_pairs
 config["normalize_users"] = args.normalize_users > 0
 config["normalize_items"] = args.normalize_items > 0
+
 config['pretrain'] = args.pretrain
 config['A_split'] = False
 config['bigdata'] = False

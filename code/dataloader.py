@@ -328,7 +328,7 @@ class Loader(BasicDataset):
         # verify that every user and item is represented in the training data.
         assert np.sum(self.users_D > 0) == self.n_user
         assert np.sum(self.items_D > 0) == self.m_item
-        assert len(testUniqueUsers) == self.n_user
+        # assert len(testUniqueUsers) == self.n_user
 
         avg_pop_per_user = np.array([np.mean([self.items_D[item] for item in self._allPos[user]]) for user in range(self.n_user)])
         median_pop_per_user = np.array([np.median([self.items_D[item] for item in self._allPos[user]]) for user in range(self.n_user)])

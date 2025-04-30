@@ -49,11 +49,20 @@ def parse_args():
     parser.add_argument('--pretrain', type=int, default=0, help='whether we use pretrained weight or not')
     parser.add_argument('--seed', type=int, default=2020, help='random seed')
     parser.add_argument('--model', type=str, default='lgn', help='rec-model, support [mf, lgn]')
+    
+    # SAMPLING
     parser.add_argument('--use_cpp', type=int, default=0, help='whether to use cpp sampling')
     parser.add_argument('--shuffle_users', type=int, default=1, help='whether to shuffle users before batching')
     parser.add_argument('--sample_pos', type=int, default=1, help='whether to sample the positive pairs for training samples')
+    
+
+    # NORMALIZATION
     parser.add_argument('--alpha', type=float,default=0.0,
-                        help="the number of training samples for a user is proportional to degree^alpha") 
+                        help="the number of training samples for a user is proportional to degree^alpha. \
+                        alpha is in [0, 1]. alpha=0 is vanilla LightGCN and alpha=1 is SGD.") 
+    parser.add_argument('--beta', type=float,default=0.0,
+                        help="the weight of the pair user u and item i is d_i^beta where d_i is the popularity of item i \
+                        setting beta=-1/2 is equivalent to turning on normalize_items.") 
     parser.add_argument('--item_pairs', type=int, default=1, help='number of item_pairs per user for degree correction')
     parser.add_argument('--normalize_users', type=int, default=0, help='whether to normalize the bpr loss by user interaction count')
     parser.add_argument('--normalize_items', type=int, default=0, help='whether to normalize the bpr loss by item interaction count')
