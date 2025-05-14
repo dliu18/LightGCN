@@ -10,6 +10,10 @@ import argparse
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Go lightGCN")
+    parser.add_argument('--loss_func', type=str,default="bpr",
+                        help="loss function to use between bpr or l2")
+    parser.add_argument('--reg_lam', type=float,default=0.5,
+                        help="regularization hyperparameter")
     parser.add_argument('--bpr_batch', type=int,default=2048,
                         help="the batch size for bpr loss training procedure")
     parser.add_argument('--recdim', type=int,default=64,

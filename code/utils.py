@@ -29,7 +29,7 @@ except:
     sample_ext = False
 
 
-class BPRLoss:
+class Loss:    
     def __init__(self,
                  recmodel : PairWiseModel,
                  config : dict):
@@ -37,7 +37,16 @@ class BPRLoss:
         self.weight_decay = config['decay']
         self.lr = config['lr']
         self.opt = optim.Adam(recmodel.parameters(), lr=self.lr)
+    
+    def stageOne(self, users, pos, neg):
+        raise NotImplementedError
 
+class BPRLoss(Loss):
+    def __init__(self,
+                 recmodel : PairWiseModel,
+                 config: dict):
+        super(BPRLoss, self).__init__(recmodel, config)
+        
     def stageOne(self, users, pos, neg):
         loss, reg_loss = self.model.bpr_loss(users, pos, neg)
         reg_loss = reg_loss*self.weight_decay
@@ -49,7 +58,21 @@ class BPRLoss:
 
         return loss.cpu().item()
 
+class L2Loss(Loss):
+    def __init__(self,
+                 recmodel : PairWiseModel,
+                 config: dict):
+        super(L2Loss, self).__init__(recmodel, config)
 
+    def stageOne(self, users, pos, neg):
+        loss = self.model.l2_loss(users, pos, neg)
+
+        self.opt.zero_grad()
+        loss.backward()
+        self.opt.step()
+
+        return loss.cpu().item()
+        
 def UniformSample_original(dataset, neg_ratio = 1):
     dataset : BasicDataset
     allPos = dataset.allPos
@@ -109,7 +132,7 @@ def getFileName():
     if world.model_name == 'mf':
         file = f"mf-{world.dataset}-{world.config['latent_dim_rec']}.pth.tar"
     elif world.model_name == 'lgn':
-        file = f"lgn-{world.dataset}-{world.config['lightGCN_n_layers']}-{world.config['latent_dim_rec']}.pth.tar"
+        file = f"lgn-{world.dataset}-{world.config['loss_func']}-{world.config['lightGCN_n_layers']}-{world.config['latent_dim_rec']}-{world.config['reg_lam']}.pth.tar"
     return os.path.join(world.FILE_PATH,file)
 
 def minibatch(*tensors, **kwargs):

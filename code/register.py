@@ -4,9 +4,9 @@ import model
 import utils
 from pprint import pprint
 
-if world.dataset in ['gowalla', 'yelp2018', 'amazon-book']:
+if world.dataset in ['gowalla', 'yelp2018', 'amazon-book', 'lastfm', 'movielens']:
     dataset = dataloader.Loader(path="../data/"+world.dataset)
-elif world.dataset == 'lastfm':
+elif world.dataset == 'lastfm': #this corresponds to the original LGN LastFM dataset
     dataset = dataloader.LastFM()
 
 print('===========config================')

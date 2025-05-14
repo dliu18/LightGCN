@@ -20,7 +20,7 @@ ROOT_PATH = os.path.dirname(os.path.dirname(__file__))
 CODE_PATH = join(ROOT_PATH, 'code')
 DATA_PATH = join(ROOT_PATH, 'data')
 BOARD_PATH = join(CODE_PATH, 'runs')
-FILE_PATH = join(CODE_PATH, 'checkpoints')
+FILE_PATH = join(CODE_PATH, 'checkpoints/pca-to-lgn')
 import sys
 sys.path.append(join(CODE_PATH, 'sources'))
 
@@ -30,9 +30,10 @@ if not os.path.exists(FILE_PATH):
 
 
 config = {}
-all_dataset = ['lastfm', 'gowalla', 'yelp2018', 'amazon-book']
+all_dataset = ['lastfm', 'movielens', 'gowalla', 'yelp2018', 'amazon-book', 'lastfm-small']
 all_models  = ['mf', 'lgn']
 # config['batch_size'] = 4096
+# TODO: nice to have would be removing "bpr" from these constant names
 config['bpr_batch_size'] = args.bpr_batch
 config['latent_dim_rec'] = args.recdim
 config['lightGCN_n_layers']= args.layer
@@ -46,6 +47,8 @@ config['decay'] = args.decay
 config['pretrain'] = args.pretrain
 config['A_split'] = False
 config['bigdata'] = False
+config["loss_func"] = args.loss_func
+config["reg_lam"] = args.reg_lam
 
 GPU = torch.cuda.is_available()
 device = torch.device('cuda' if GPU else "cpu")
@@ -71,8 +74,6 @@ comment = args.comment
 # let pandas shut up
 from warnings import simplefilter
 simplefilter(action="ignore", category=FutureWarning)
-
-
 
 def cprint(words : str):
     print(f"\033[0;30;43m{words}\033[0m")
