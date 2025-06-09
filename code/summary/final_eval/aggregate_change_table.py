@@ -3,7 +3,7 @@ import pandas as pd
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 our_variant = "ours"
-model = "mf"
+model = "lgn"
 # our_variant = "our-non-zero-beta"
 
 def parse_event_file(event_file, target_tags):
