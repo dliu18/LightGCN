@@ -52,6 +52,12 @@ config['lr'] = args.lr
 config['decay'] = args.decay
 config['degree decay']=args.degree_decay
 
+# POST-PROCESSING BASELINE
+config['pc_alpha'] = args.pc_alpha
+config['pc_beta'] = args.pc_beta 
+if config['pc_alpha'] > 0:
+	BOARD_PATH = join(BOARD_PATH, "alpha", str(config["pc_alpha"]), "beta", str(config["pc_beta"]))
+
 # NORMALIZATION
 config['alpha'] = args.alpha
 config['beta'] = args.beta 

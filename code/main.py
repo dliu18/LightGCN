@@ -30,21 +30,25 @@ Neg_k = 1
 
 # init tensorboard
 if world.tensorboard:
+    # if using the post-processing baseline, the board path is augmented
     w : SummaryWriter = SummaryWriter(world.BOARD_PATH)
 else:
     w = None
     world.cprint("not enable tensorflowboard")
 
 try:
-    for epoch in range(world.TRAIN_epochs):
-        start = time.time()
-        if epoch % world.config["test_interval"] == 0:
-            cprint("[TEST]")
-            Procedure.Test(dataset, Recmodel, epoch, w, world.config['multicore'])
-            # Procedure.Test(dataset, Recmodel, epoch, w, world.config['multicore'], is_test=False)
-        output_information = Procedure.BPR_train_original(dataset, Recmodel, bpr, epoch, neg_k=Neg_k,w=w)
-        print(f'EPOCH[{epoch+1}/{world.TRAIN_epochs}] {output_information}')
-        torch.save(Recmodel.state_dict(), weight_file)
+    if world.LOAD:
+        Procedure.Test(dataset, Recmodel, world.TRAIN_epochs, w, world.config['multicore'])
+    else:
+        for epoch in range(world.TRAIN_epochs):
+            start = time.time()
+            if epoch % world.config["test_interval"] == 0:
+                cprint("[TEST]")
+                Procedure.Test(dataset, Recmodel, epoch, w, world.config['multicore'])
+                # Procedure.Test(dataset, Recmodel, epoch, w, world.config['multicore'], is_test=False)
+            output_information = Procedure.BPR_train_original(dataset, Recmodel, bpr, epoch, neg_k=Neg_k,w=w)
+            print(f'EPOCH[{epoch+1}/{world.TRAIN_epochs}] {output_information}')
+            torch.save(Recmodel.state_dict(), weight_file)
 finally:
     if world.tensorboard:
         w.close()

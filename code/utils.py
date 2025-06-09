@@ -237,7 +237,39 @@ class timer:
         else:
             self.tape.append(timer.time() - self.start)
 
+def postprocess_rating(users, rating, dataset):
+    '''
+        users: tensor of user indices
+        rating: tensor of predicted user-item ratings shape: num users x num items
+        dataset: dataset object
+    '''
+    dataset : BasicDataset
 
+    alpha = world.config["pc_alpha"]
+    beta = world.config["pc_beta"]
+
+    compensation = (rating * beta) + (1 - beta)
+    pops = torch.tensor(dataset.item_popularities).to(world.device)
+    compensation /= pops #broadcast
+
+    allPos = dataset.getUserPosItems(users.to('cpu'))
+    mask = torch.ones(rating.shape)
+    exclude_index = []
+    exclude_items = []
+    for range_i, items in enumerate(allPos):
+        exclude_index.extend([range_i] * len(items))
+        exclude_items.extend(items)
+    mask[exclude_index, exclude_items] = 0
+    mask = mask.to(world.device)
+
+    O = torch.tensor([len(item_list) for item_list in allPos]).to(world.device)
+    assert torch.max(O) < dataset.m_items
+
+    test = rating * mask
+    n = torch.norm((rating * mask) / (dataset.m_items - O).unsqueeze(1))
+    m = torch.norm((rating * mask) / (dataset.m_items - O).unsqueeze(1))
+
+    return rating + alpha * (n/m) * compensation
 # ====================Metrics==============================
 # =========================================================
 def RecallPrecision_ATk(test_data, r, k):

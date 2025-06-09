@@ -67,4 +67,9 @@ def parse_args():
     parser.add_argument('--normalize_users', type=int, default=0, help='whether to normalize the bpr loss by user interaction count')
     parser.add_argument('--normalize_items', type=int, default=0, help='whether to normalize the bpr loss by item interaction count')
 
+    # BASELINES
+    parser.add_argument('--pc_alpha', type=float,default=0.0,
+                        help="hyperparameter from the post-processing baseline in (Zhu et al., 2021)") 
+    parser.add_argument('--pc_beta', type=float,default=0.0,
+                        help="hyperparameter from the post-processing baseline in (Zhu et al., 2021)") 
     return parser.parse_args()

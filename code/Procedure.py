@@ -192,6 +192,8 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0, is_test=True):
             batch_users_gpu = batch_users_gpu.to(world.device)
 
             rating = Recmodel.getUsersRating(batch_users_gpu)
+            if world.config["pc_alpha"] > 0:
+                rating = utils.postprocess_rating(batch_users_gpu, rating, dataset)
             #rating = rating.cpu()
 
             if is_test:
