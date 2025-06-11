@@ -266,10 +266,10 @@ def postprocess_rating(users, rating, dataset):
     assert torch.max(O) < dataset.m_items
 
     test = rating * mask
-    n = torch.norm((rating * mask) / (dataset.m_items - O).unsqueeze(1))
-    m = torch.norm((rating * mask) / (dataset.m_items - O).unsqueeze(1))
+    n = torch.norm((rating * mask) / (dataset.m_items - O).unsqueeze(1), dim=1)
+    m = torch.norm((rating * mask) / (dataset.m_items - O).unsqueeze(1), dim=1)
 
-    return rating + alpha * (n/m) * compensation
+    return rating + alpha * (n/m).unsqueeze(1) * compensation
 # ====================Metrics==============================
 # =========================================================
 def RecallPrecision_ATk(test_data, r, k):

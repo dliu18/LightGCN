@@ -1,145 +1,138 @@
 import os
+import numpy as np
 import pandas as pd
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
-our_variant = "ours"
-model = "lgn"
-# our_variant = "our-non-zero-beta"
+model = "mf"
+# base_dirs = ["../../runs/final", "../../runs/final-1", "../../runs/final-2", "../../runs/final-3"]
+base_dirs = ["../../runs/final"]
+
+target_variants = ["vanilla", "ours", "only-items", "only-users"]
+
+target_tags = [
+    "Test/Recall__20__2000_",
+    "Test/Precision__20__2000_",
+    "Test/NDCG__20__2000_",
+    "Test/Popularity_Opportunity_Bias_20",
+]
+
+pretty_names = {
+    "Test/Recall__20__2000_": "Recall@20",
+    "Test/Precision__20__2000_": "Precision@20",
+    "Test/NDCG__20__2000_": "NDCG@20",
+    "Test/Popularity_Opportunity_Bias_20": "POB@20",
+}
 
 def parse_event_file(event_file, target_tags):
     ea = EventAccumulator(event_file, size_guidance={'scalars': 0})
     ea.Reload()
     final_values = {}
-    max_step = 0
-    times = []
     for tag in ea.Tags()['scalars']:
         events = ea.Scalars(tag)
-        if events:
-            if tag in target_tags:
-                final_values[tag] = events[-1].value
-            max_step = max(max_step, events[-1].step)
-            times.append(events[-1].wall_time)
-    return final_values, max_step, times
+        if events and tag in target_tags:
+            final_values[tag] = events[-1].value
+    return final_values
 
-def collect_metrics(base_dir="final"):
-    rows = []
-    target_tags = [
-        "Test/Recall__20__2000_",
-        "Test/Precision__20__2000_",
-        "Test/NDCG__20__2000_",
-        "Test/Popularity_Opportunity_Bias_20",
-    ]
-
-    for dataset_name in os.listdir(base_dir):
-        dataset_path = os.path.join(base_dir, dataset_name)
-        if not os.path.isdir(dataset_path):
-            continue
-        for variant in os.listdir(dataset_path):
-            variant_path = os.path.join(dataset_path, variant)
-            if not os.path.isdir(variant_path):
+def collect_metrics_all_trials(base_dirs):
+    all_data = {}
+    for base_dir in base_dirs:
+        base_dir = os.path.join(base_dir, model)
+        for dataset_name in os.listdir(base_dir):
+            dataset_path = os.path.join(base_dir, dataset_name)
+            if not os.path.isdir(dataset_path):
                 continue
+            for variant in os.listdir(dataset_path):
+                variant_path = os.path.join(dataset_path, variant)
+                if not os.path.isdir(variant_path):
+                    continue
 
-            metrics = {}
-            max_epochs = 0
-            all_times = []
+                metrics = {}
+                test_path = os.path.join(variant_path, "Test")
+                # print(variant_path)
+                # print(variant)
+                if os.path.isdir(test_path):
+                    for metric_folder in os.listdir(test_path):
+                        metric_path = os.path.join(test_path, metric_folder, "20")
+                        if not os.path.isdir(metric_path):
+                            continue
+                        for f in os.listdir(metric_path):
+                            if f.startswith("events.out.tfevents"):
+                                event_file = os.path.join(metric_path, f)
+                                print(event_file)
+                                parsed_vals = parse_event_file(event_file, target_tags)
+                                metrics.update(parsed_vals)
 
-            # Parse metrics under Test/
-            test_path = os.path.join(variant_path, "Test")
-            if os.path.isdir(test_path):
-                for metric_folder in os.listdir(test_path):
-                    metric_path = os.path.join(test_path, metric_folder, "20")
-                    if not os.path.isdir(metric_path):
-                        continue
-                    for f in os.listdir(metric_path):
-                        if f.startswith("events.out.tfevents"):
-                            event_file = os.path.join(metric_path, f)
-                            parsed_vals, steps, times = parse_event_file(event_file, target_tags)
-                            metrics.update(parsed_vals)
-                            max_epochs = max(max_epochs, steps)
-                            all_times.extend(times)
+                for f in os.listdir(variant_path):
+                    if f.startswith("events.out.tfevents"):
+                        event_file = os.path.join(variant_path, f)
+                        print(event_file)
+                        parsed_vals = parse_event_file(event_file, target_tags)
+                        metrics.update(parsed_vals)
+                        break
 
-            # Parse top-level event file for Popularity Opportunity Bias
-            top_event_file = None
-            for f in os.listdir(variant_path):
-                if f.startswith("events.out.tfevents"):
-                    top_event_file = os.path.join(variant_path, f)
-                    break
-            if top_event_file:
-                try:
-                    parsed_vals, steps, times = parse_event_file(top_event_file, target_tags)
-                    if "Test/Popularity_Opportunity_Bias_20" in parsed_vals:
-                        metrics["Test/Popularity_Opportunity_Bias_20"] = parsed_vals["Test/Popularity_Opportunity_Bias_20"]
-                except Exception as e:
-                    print(f"Warning: could not parse top-level event file {top_event_file}: {e}")
+                key = (dataset_name, variant)
+                if key not in all_data:
+                    all_data[key] = {tag: [] for tag in target_tags}
+                for tag in target_tags:
+                    if tag in metrics:
+                        all_data[key][tag].append(metrics[tag])
 
-            row = {
-                "dataset": dataset_name,
-                "model_variant": variant,
-                "Recall__20__2000_": metrics.get("Test/Recall__20__2000_", None),
-                "Precision__20__2000_": metrics.get("Test/Precision__20__2000_", None),
-                "NDCG__20__2000_": metrics.get("Test/NDCG__20__2000_", None),
-                "Popularity_Opportunity_Bias_20": metrics.get("Test/Popularity_Opportunity_Bias_20", None),
-                "epochs_trained": max_epochs,
-                "training_time": (max(all_times) - min(all_times)) if all_times else None,
-            }
-            rows.append(row)
+    records = []
+    for (dataset, variant), tag_dict in all_data.items():
+        row = {"dataset": dataset, "model_variant": variant}
+        for tag in target_tags:
+            vals = tag_dict[tag]
+            row[tag + "_mean"] = np.mean(vals) if vals else None
+            row[tag + "_std"] = np.std(vals) if vals else None
+            print(dataset, variant, tag, vals)
+        records.append(row)
 
-    return pd.DataFrame(rows)
+    return pd.DataFrame(records)
 
 if __name__ == "__main__":
-
-    df = collect_metrics(f"../../runs/final/{model}")
-
-    # Save full dataframe to CSV
+    df = collect_metrics_all_trials(base_dirs)
     df.to_csv(f"../../../outputs/final_eval/aggregate_{model}.csv", index=False)
 
+    latex_df = df[df["model_variant"].isin(target_variants)]
 
-    # For LaTeX table: only keep 'vanilla' and 'ours' variants
-    latex_df = df[df["model_variant"].isin(["vanilla", our_variant])].drop(
-        columns=["epochs_trained", "training_time"]
-    )
-
-    # Pretty rename columns
-    pretty_column_names = {
-        "Recall__20__2000_": "Recall@20",
-        "Precision__20__2000_": "Precision@20",
-        "NDCG__20__2000_": "NDCG@20",
-        "Popularity_Opportunity_Bias_20": "POB@20",
-    }
-    latex_df = latex_df.rename(columns=pretty_column_names)
-
-    # Create LaTeX table with Delta rows
     final_rows = []
     for dataset in latex_df["dataset"].unique():
         subset = latex_df[latex_df["dataset"] == dataset]
-        if "vanilla" not in subset["model_variant"].values or our_variant not in subset["model_variant"].values:
+        if "vanilla" not in subset["model_variant"].values:
             continue
 
-        vanilla_row = subset[subset["model_variant"] == "vanilla"].iloc[0]
-        ours_row = subset[subset["model_variant"] == our_variant].iloc[0]
+        v_row = subset[subset["model_variant"] == "vanilla"].iloc[0]
+        v_vals = {tag: (v_row[tag + "_mean"], v_row[tag + "_std"]) for tag in target_tags}
 
-        vanilla_vals = vanilla_row.drop(["dataset", "model_variant"]).astype(float)
-        ours_vals = ours_row.drop(["dataset", "model_variant"]).astype(float)
+        def format_metrics(row):
+            return [
+                # f"{row[tag + '_mean']:.4f}$\\pm${row[tag + '_std']:.4f}"
+                f"{row[tag + '_mean']:.4f}"
+                for tag in target_tags
+            ]
 
-        delta_vals = ((ours_vals - vanilla_vals) / vanilla_vals * 100).round(1)
+        def format_deltas(row):
+            deltas = []
+            for tag in target_tags:
+                base = v_vals[tag][0]
+                new = row[tag + "_mean"]
+                delta = ((new - base) / base * 100) if base else 0
+                deltas.append(f"\\textbf{{({delta:+.1f}\\%)}}")
+            return deltas
 
-        final_rows.append(
-            [dataset, "Vanilla"] + [f"{val:.4f}" for val in vanilla_vals.values]
-        )
-        final_rows.append(
-            ["", "Ours"] + [f"{val:.4f}" for val in ours_vals.values]
-        )
-        final_rows.append(
-            ["", "$\\Delta$"] + [f"\\textbf{{({val:+.1f}\\%)}}" for val in delta_vals.values]
-        )
-    
-    # Create DataFrame for LaTeX
+        final_rows.append([dataset, "Vanilla"] + format_metrics(v_row))
+
+        for variant in ["ours", "only-items", "only-users"]:
+            if variant in subset["model_variant"].values:
+                row = subset[subset["model_variant"] == variant].iloc[0]
+                final_rows.append(["", model.upper() + " " + variant.replace("-", " ").title()] + format_metrics(row))
+                final_rows.append(["", "$\\Delta$"] + format_deltas(row))
+
     final_latex_df = pd.DataFrame(
         final_rows,
-        columns=["Dataset", "Variant", "Recall@20", "Pre@20", "NDCG@20", "Bias"]
+        columns=["Dataset", "Variant"] + [pretty_names[t] for t in target_tags]
     )
 
-    # Build LaTeX table
     latex_table = (
         "\\begin{table}[t]\n"
         "\\centering\n"
@@ -158,8 +151,7 @@ if __name__ == "__main__":
         latex_table += line
         last_dataset = row["Dataset"]
 
-    latex_table += "\\bottomrule\n\\end{tabular}%\n}\\caption{Performance comparison between vanilla and ours models across datasets.}\\label{tab:results}\n\\end{table}\n"
+    latex_table += "\\bottomrule\n\\end{tabular}%\n}\\caption{Performance (mean$\\pm$std) and relative deltas from vanilla across four trials.}\\label{tab:results}\n\\end{table}\n"
 
-    # Write to file
     with open(f"../../../outputs/final_eval/aggregate_{model}.txt", "w") as f:
         f.write(latex_table)

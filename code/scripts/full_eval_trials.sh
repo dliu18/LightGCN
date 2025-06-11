@@ -5,11 +5,17 @@
 DATASET=$1
 MODEL=$2
 
-BASE_CMD="python main.py --decay=1e-4 --lr=0.001 --layer=3 --seed=2020 --epochs=301 --bpr_batch=2048 \
---test_interval=300 --topks=\"[20, 2000]\" --recdim=64 --dataset=$DATASET --model=$MODEL \
+TEST_INTERVAL=$3
+EPOCHS=$((TEST_INTERVAL + 1))
+
+ALPHA=$4
+BETA=$5
+
+BASE_CMD="python main.py --decay=1e-4 --lr=0.001 --layer=3 --seed=9999 --epochs=${EPOCHS} --bpr_batch=2048 \
+--test_interval=${TEST_INTERVAL} --topks=\"[20, 2000]\" --recdim=64 --dataset=$DATASET --model=$MODEL \
 --use_cpp=1 --sample_pos=1 --normalize_items=0 --shuffle_users=1 --tau=0"
 
-for TRIAL_INDEX in 1 2 3; do
+for TRIAL_INDEX in 5; do
 
 	# Define trials
 	declare -a TRIALS=(
@@ -17,7 +23,7 @@ for TRIAL_INDEX in 1 2 3; do
 		# "comment=final-${TRIAL_INDEX}/${MODEL}/${DATASET}/vanilla normalize_users=0 beta=0 alpha=0"
 
 		# #optimal recall from hyperparam
-		"comment=final-${TRIAL_INDEX}/${MODEL}/${DATASET}/ours normalize_users=0 beta=-0.5 alpha=1.0"
+		"comment=final-${TRIAL_INDEX}/${MODEL}/${DATASET}/ours normalize_users=0 beta=${BETA} alpha=${ALPHA}"
 
 		# #optimal recall from hyperparam where alpha=0 and beta is not zero (only item norm)
 		# "comment=final-${TRIAL_INDEX}/${MODEL}/${DATASET}/only-item normalize_users=0 beta=-0.5 alpha=0"
