@@ -6,7 +6,9 @@ import numpy as np
 from tensorboardX import SummaryWriter
 import time
 import Procedure
-from os.path import join
+
+import os
+from os.path import join, dirname
 # ==============================
 utils.set_seed(world.seed)
 print(">>SEED:", world.seed)
@@ -20,6 +22,9 @@ bpr = utils.BPRLoss(Recmodel, world.config)
 
 weight_file = utils.getFileName()
 print(f"load and save to {weight_file}")
+weight_file_folder = dirname(weight_file)
+os.makedirs(weight_file_folder, exist_ok=True)
+
 if world.LOAD:
     try:
         Recmodel.load_state_dict(torch.load(weight_file,map_location=torch.device('cpu')))

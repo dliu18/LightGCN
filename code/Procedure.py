@@ -99,7 +99,7 @@ def popularity_opportunity_one_batch(X):
     groundTrue_batch = X[1]
     quadrant_labels = X[2]
 
-    max_k = world.topks[-1]
+    # max_k = world.topks[-1]
     agg_item_freqs_and_ranks = {}
     sub_item_freqs_and_ranks = []
     for _ in range(len(quadrant_labels)):
@@ -115,11 +115,18 @@ def popularity_opportunity_one_batch(X):
                 break
         assert actual_subgroup_idx >= 0
 
+        # use below when max_k is not truncated
         pred_ranks = np.array([
             np.where(sorted_items == item)[0][0] + 1 \
-                if item in sorted_items else max_k \
                 for item in groundTrue
         ])
+
+        ## Use below when max_k is truncated
+        # pred_ranks = np.array([
+        #     np.where(sorted_items == item)[0][0] + 1 \
+        #         if item in sorted_items else max_k \
+        #         for item in groundTrue
+        # ])
         for item_idx, item in enumerate(groundTrue):
             if item not in agg_item_freqs_and_ranks:
                 agg_item_freqs_and_ranks[item] = [0, 0]
@@ -155,7 +162,10 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0, is_test=True):
     Recmodel: model.LightGCN
     # eval mode with no dropout
     Recmodel = Recmodel.eval()
-    max_K = max(world.topks)
+
+    # max_K = max(world.topks)
+    max_K = dataset.m_items
+    
     if multicore == 1:
         pool = multiprocessing.Pool(CORES)
     results = {
@@ -237,14 +247,26 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0, is_test=True):
             results['high_low_recall'] += result['high_low_recall']
             results['high_high_recall'] += result['high_high_recall']
 
+        # debug the quadrant recalls 
+        # print(f"total recall: {results['recall']}")
+        # print(f"total quadrant recall: {results['low_low_recall'] + results['low_high_recall'] + results['high_low_recall'] +results['high_high_recall']}")
+        # print(f"total low low recall: {results['low_low_recall']}")
+        # print(f"total low high recall: {results['low_high_recall']}")
+        # print(f"total high low recall: {results['high_low_recall']}")
+        # print(f"total high high recall: {results['high_high_recall']}")
+        # print(f"total quadrant users: {np.sum([np.sum(labels) for labels in user_quadrant_labels])}")
+
         num_niche_users = np.sum(dataset.is_niche_user(users))
         results['recall'] /= float(len(users))
         results['precision'] /= float(len(users))       
         results['ndcg'] /= float(len(users))
-        results['low_low_recall'] /= float(np.sum(user_quadrant_labels[0]))
-        results['low_high_recall'] /= float(np.sum(user_quadrant_labels[1]))
-        results['high_low_recall'] /= float(np.sum(user_quadrant_labels[2]))
-        results['high_high_recall'] /= float(np.sum(user_quadrant_labels[3]))
+
+        # truncate the quadrant labels for the data shapley setting. When training on the entire training set,
+        # the truncation is a no-op.
+        results['low_low_recall'] /= float(np.sum(user_quadrant_labels[0][:len(users)])) 
+        results['low_high_recall'] /= float(np.sum(user_quadrant_labels[1][:len(users)]))
+        results['high_low_recall'] /= float(np.sum(user_quadrant_labels[2][:len(users)]))
+        results['high_high_recall'] /= float(np.sum(user_quadrant_labels[3][:len(users)]))
         # results['auc'] = np.mean(auc_record)
 
         item_freq_in_predictions = {item: 0 for item in range(dataset.m_items)}

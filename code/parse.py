@@ -14,6 +14,8 @@ def parse_args():
                         help="the batch size for bpr loss training procedure")
     parser.add_argument('--test_interval', type=int,default=10,
                         help="how frequently (epochs) to evaluate")
+    parser.add_argument('--test_set', type=str,default="test",
+                        help="either 'test' for the test set or 'valid' for the validation set.")
     parser.add_argument('--recdim', type=int,default=64,
                         help="the embedding size of lightGCN")
     parser.add_argument('--layer', type=int,default=3,

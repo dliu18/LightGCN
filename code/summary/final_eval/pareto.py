@@ -100,7 +100,7 @@ def plot_scatter_metrics(df):
 
     label_names = {
         "vanilla": "Vanilla",
-        our_varaint: "Ours",
+        our_varaint: "Users and Items",
         "only-items": "Only Items",
         "only-users": "Only Users"
     }

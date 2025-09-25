@@ -263,7 +263,8 @@ class Loader(BasicDataset):
         self.n_user = 0
         self.m_item = 0
         train_file = path + '/train.txt'
-        test_file = path + '/test.txt'
+        test_file = path + f'/{config["test_set"]}.txt'
+        print("Reading test data from: {test_file}")
         self.path = path
         trainUniqueUsers, trainItem, trainUser = [], [], []
         testUniqueUsers, testItem, testUser = [], [], []
@@ -309,6 +310,8 @@ class Loader(BasicDataset):
         self.testItem = np.array(testItem)
         
         self.Graph = None
+        print(f"{self.n_user} users")
+        print(f"{self.m_item} items")
         print(f"{self.trainDataSize} interactions for training")
         print(f"{self.testDataSize} interactions for testing")
         print(f"{world.dataset} Sparsity : {(self.trainDataSize + self.testDataSize) / self.n_users / self.m_items}")
@@ -327,7 +330,9 @@ class Loader(BasicDataset):
 
         # verify that every user and item is represented in the training data.
         assert np.sum(self.users_D > 0) == self.n_user
-        assert np.sum(self.items_D > 0) == self.m_item
+
+        # commented out the below assertion for the data shapley experiments
+        # assert np.sum(self.items_D > 0) == self.m_item
         # assert len(testUniqueUsers) == self.n_user
 
         avg_pop_per_user = np.array([np.mean([self.items_D[item] for item in self._allPos[user]]) for user in range(self.n_user)])
