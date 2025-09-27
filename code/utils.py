@@ -40,17 +40,19 @@ class BPRLoss:
         self.model = recmodel
         self.weight_decay = config['decay']
         self.degree_decay = config['degree decay']
+        self.pop_corr_lambda = config["pop_corr_lambda"]
         self.lr = config['lr']
         self.tau = config['tau']
         self.opt = optim.Adam(recmodel.parameters(), lr=self.lr)
 
     def stageOne(self, users, pos, neg):
-        loss, reg_loss = self.model.bpr_loss(users, pos, neg)
+        loss, reg_loss, pop_corr_loss = self.model.bpr_loss(users, pos, neg)
         # degree_coefs, item_similarities = self.model.degree_correction_loss(users, pos, neg, self.tau)
         reg_loss = reg_loss*self.weight_decay
         # full_loss = loss + reg_loss + self.degree_decay * torch.dot(degree_coefs, F.relu(item_similarities))
-        full_loss = loss + reg_loss 
-        
+        full_loss = loss + reg_loss
+        if self.pop_corr_lambda > 0:
+            full_loss = loss + reg_loss + self.pop_corr_lambda * pop_corr_loss
         self.opt.zero_grad()
         full_loss.backward()
         self.opt.step()
@@ -61,7 +63,8 @@ class BPRLoss:
 
         original_loss = loss + reg_loss
         return {
-                "loss": original_loss.cpu().item(), 
+                "loss": original_loss.cpu().item(),
+                "Popularity Correlation Loss": pop_corr_loss.cpu().item() 
                 # "num item pairs": len(item_similarities),
                 # "avg low pop similarity": np.mean(item_similarities[degree_coefs < np.percentile(degree_coefs, 10)])
             }
@@ -340,6 +343,23 @@ def getLabel(test_data, pred_data):
 
 def pop_opp_bias(pops, avg_ranks):
     return -(spearmanr(pops[avg_ranks > 0], avg_ranks[avg_ranks > 0]).correlation)
+
+def pearson_corr(x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    """
+    Pearson correlation for two 1-D tensors using torch.corrcoef.
+
+    Returns:
+        A scalar tensor in [-1, 1]. If either vector has ~zero variance,
+        returns 0.0 (torch.corrcoef would yield NaN otherwise).
+    """
+    if x.ndim != 1 or y.ndim != 1:
+        raise ValueError("pearsonr_1d expects two 1-D tensors.")
+    if x.numel() != y.numel():
+        raise ValueError(f"Length mismatch: {x.numel()} vs {y.numel()}")
+
+    t = torch.stack((x.to(torch.float32), y.to(torch.float32)), dim=0)
+    r = torch.corrcoef(t)[0, 1]
+    return r
 
 def gini_index(pops, item_ratios):
     '''

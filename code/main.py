@@ -47,7 +47,7 @@ try:
     else:
         for epoch in range(world.TRAIN_epochs):
             start = time.time()
-            if epoch % world.config["test_interval"] == 0:
+            if epoch > 0 and epoch % world.config["test_interval"] == 0:
                 cprint("[TEST]")
                 Procedure.Test(dataset, Recmodel, epoch, w, world.config['multicore'])
                 # Procedure.Test(dataset, Recmodel, epoch, w, world.config['multicore'], is_test=False)

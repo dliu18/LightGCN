@@ -26,6 +26,8 @@ def parse_args():
                         help="the weight decay for l2 normalizaton")
     parser.add_argument('--degree_decay', type=float,default=1e-2,
                         help="the regularization hyperparameter for degree-correction")
+    parser.add_argument('--pop_corr_lambda', type=float,default=0.0,
+                        help="the regularization hyperparameter for popularity-correlation")
     parser.add_argument('--tau', type=float,default=10,
                         help="degre-correction regularization hyperparam")
     parser.add_argument('--dropout', type=int,default=0,

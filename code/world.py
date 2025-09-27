@@ -52,6 +52,7 @@ config['multicore'] = args.multicore
 config['lr'] = args.lr
 config['decay'] = args.decay
 config['degree decay']=args.degree_decay
+config["pop_corr_lambda"]=args.pop_corr_lambda
 
 # POST-PROCESSING BASELINE
 config['pc_alpha'] = args.pc_alpha
