@@ -264,7 +264,7 @@ class Loader(BasicDataset):
         self.m_item = 0
         train_file = path + '/train.txt'
         test_file = path + f'/{config["test_set"]}.txt'
-        print("Reading test data from: {test_file}")
+        print(f"Reading test data from: {test_file}")
         self.path = path
         trainUniqueUsers, trainItem, trainUser = [], [], []
         testUniqueUsers, testItem, testUser = [], [], []
@@ -332,19 +332,25 @@ class Loader(BasicDataset):
         assert np.sum(self.users_D > 0) == self.n_user
 
         # commented out the below assertion for the data shapley experiments
+        print(f"{np.sum(self.items_D == 0)} items without any users.")
         # assert np.sum(self.items_D > 0) == self.m_item
         # assert len(testUniqueUsers) == self.n_user
 
         avg_pop_per_user = np.array([np.mean([self.items_D[item] for item in self._allPos[user]]) for user in range(self.n_user)])
-        median_pop_per_user = np.array([np.median([self.items_D[item] for item in self._allPos[user]]) for user in range(self.n_user)])
         self.niche_users = avg_pop_per_user < np.percentile(avg_pop_per_user, 10) # not really used anymore
 
 
         # define four user label lists corresponding to the four quadrants 
-        is_low_interaction_low_pop = (self.users_D <= np.mean(self.users_D)) & (median_pop_per_user <= np.mean(median_pop_per_user))
-        is_low_interaction_high_pop = (self.users_D <= np.mean(self.users_D)) & (median_pop_per_user > np.mean(median_pop_per_user))
-        is_high_interaction_low_pop = (self.users_D > np.mean(self.users_D)) & (median_pop_per_user <= np.mean(median_pop_per_user))
-        is_high_interaction_high_pop = (self.users_D > np.mean(self.users_D)) & (median_pop_per_user > np.mean(median_pop_per_user))
+        is_low_interaction_low_pop = (self.users_D <= np.median(self.users_D)) & (avg_pop_per_user <= np.median(avg_pop_per_user))
+        is_low_interaction_high_pop = (self.users_D <= np.median(self.users_D)) & (avg_pop_per_user > np.median(avg_pop_per_user))
+        is_high_interaction_low_pop = (self.users_D > np.median(self.users_D)) & (avg_pop_per_user <= np.median(avg_pop_per_user))
+        is_high_interaction_high_pop = (self.users_D > np.median(self.users_D)) & (avg_pop_per_user > np.median(avg_pop_per_user))
+
+
+        # print(f"Light-Niche: {np.sum(is_low_interaction_low_pop)}")
+        # print(f"Light-Mainstream: {np.sum(is_low_interaction_high_pop)}")
+        # print(f"Power-Niche: {np.sum(is_high_interaction_low_pop)}")
+        # print(f"Power-Mainstream: {np.sum(is_high_interaction_high_pop)}")
 
         assert np.all(is_low_interaction_low_pop | is_low_interaction_high_pop | is_high_interaction_low_pop | is_high_interaction_high_pop)
         self._user_quadrant_labels = (is_low_interaction_low_pop, is_low_interaction_high_pop, is_high_interaction_low_pop, is_high_interaction_high_pop)

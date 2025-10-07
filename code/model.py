@@ -301,9 +301,11 @@ class LightGCN(BasicModel):
 
         loss = torch.mean(user_coefs * item_popularity_coefs * torch.nn.functional.softplus(neg_scores - pos_scores))
         
-        pop_corr_loss = utils.pearson_corr(
-            torch.Tensor(popularities).to(world.device), 
-            pos_scores)
+        pop_corr_loss = torch.Tensor([0.0])
+        if world.config["pop_corr_lambda"] > 0:
+            pop_corr_loss = utils.pearson_corr(
+                torch.Tensor(popularities).to(world.device), 
+                pos_scores)**2
 
         return loss, reg_loss, pop_corr_loss
        

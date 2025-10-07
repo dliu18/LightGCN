@@ -21,7 +21,7 @@ from sklearn.metrics import roc_auc_score
 
 
 CORES = multiprocessing.cpu_count() // 2
-
+LOG_FREQ_IN_BATCHES = 500
 
 def BPR_train_original(dataset, recommend_model, loss_class, epoch, neg_k=1, w=None):
     Recmodel = recommend_model
@@ -53,7 +53,7 @@ def BPR_train_original(dataset, recommend_model, loss_class, epoch, neg_k=1, w=N
         pop_corr_loss = results["Popularity Correlation Loss"]
 
         aver_loss += cri
-        if world.tensorboard:
+        if world.tensorboard and (batch_i % LOG_FREQ_IN_BATCHES) == 0:
             w.add_scalar(f'BPRLoss/BPR', cri, epoch * int(len(users) / world.config['bpr_batch_size']) + batch_i)
             w.add_scalar(f'BPRLoss/Popularity Correlation', pop_corr_loss, epoch * int(len(users) / world.config['bpr_batch_size']) + batch_i)
             # w.add_scalar(f'BPRLoss/Item Pairs', num_item_pairs, epoch * int(len(users) / world.config['bpr_batch_size']) + batch_i)

@@ -29,9 +29,9 @@ def compute_duration(event_file):
 
 def get_tag_name(metric_name):
     tag_names = {
-        "Recall@[20, 2000]": "Recall__20__2000_",
-        "Precision@[20, 2000]": "Precision__20__2000_",
-        "NDCG@[20, 2000]": "NDCG__20__2000_"
+        "Recall@[20, 100]": "Recall__20__100_",
+        "Precision@[20, 100]": "Precision__20__100_",
+        "NDCG@[20, 100]": "NDCG__20__100_"
     }
     if metric_name in tag_names:
         return tag_names[metric_name]
@@ -39,8 +39,8 @@ def get_tag_name(metric_name):
         return metric_name
 
 def collect_metrics(base_dir):
-    perf_metrics = ['Recall@[20, 2000]', 'Precision@[20, 2000]', 'NDCG@[20, 2000]']
-    fairness_metrics = ['Popularity_Opportunity_Bias_20', 'Gini_20']
+    perf_metrics = ['Recall@[20, 100]', 'Precision@[20, 100]', 'NDCG@[20, 100]']
+    fairness_metrics = ['Popularity_Opportunity_Bias_20', 'Niche-Recall_20', 'Gini_20', 'Coverage_20']
     results = []
 
     alpha_path = os.path.join(base_dir, "alpha")
@@ -83,10 +83,11 @@ def collect_metrics(base_dir):
 
 def plot_heatmaps(df, output_pdf, dataset_name):
     metrics = [
-        ('Recall@[20, 2000]', 'max'),
-        ('Precision@[20, 2000]', 'max'),
-        ('NDCG@[20, 2000]', 'max'),
+        ('Recall@[20, 100]', 'max'),
+        ('Precision@[20, 100]', 'max'),
+        ('NDCG@[20, 100]', 'max'),
         ('Popularity_Opportunity_Bias_20', 'min'),
+        ('Niche-Recall_20', 'max'),
         ('Gini_20', 'min'),
         ('duration_sec', 'max')
     ]
@@ -121,8 +122,7 @@ def plot_heatmaps(df, output_pdf, dataset_name):
 
             title = f"{metric} Heatmap ({'min' if mode == 'min' else 'max'} highlighted)"
             if metric == "duration_sec":
-                title = f"Trial Duration Heatmap (minutes)"
-                pivot /= 60  # convert to minutes
+                title = f"Trial Duration Heatmap (seconds)"
 
             plt.title(title)
             plt.xlabel("Beta")
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     dataset_name = sys.argv[1]
     model_name = sys.argv[2]
     base_path = f"../runs/hyperparam/{model_name}/{dataset_name}"
-    output_pdf = f"../../outputs/hyperparam/metric_heatmaps_{model_name}_{dataset_name}.pdf"
+    output_pdf = f"../../outputs/hyperparam/www/metric_heatmaps_{model_name}_{dataset_name}.pdf"
 
     df = collect_metrics(base_path)
     print(df.head())

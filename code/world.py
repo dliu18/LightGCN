@@ -16,11 +16,16 @@ import multiprocessing
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 args = parse_args()
 
+comment = args.comment
+output_filename = args.comment
+if args.output_file != "":
+    output_filename = args.output_file
+
 ROOT_PATH = os.path.dirname(os.path.dirname(__file__))
 CODE_PATH = join(ROOT_PATH, 'code')
 DATA_PATH = join(ROOT_PATH, 'data')
-BOARD_PATH = join(CODE_PATH, 'runs', args.comment)
-FILE_PATH = join(CODE_PATH, 'checkpoints', args.comment)
+BOARD_PATH = join(CODE_PATH, 'runs', output_filename)
+FILE_PATH = join(CODE_PATH, 'checkpoints', comment)
 import sys
 sys.path.append(join(CODE_PATH, 'sources'))
 
@@ -91,7 +96,7 @@ LOAD = args.load
 PATH = args.path
 topks = eval(args.topks)
 tensorboard = args.tensorboard
-comment = args.comment
+
 # let pandas shut up
 from warnings import simplefilter
 simplefilter(action="ignore", category=FutureWarning)

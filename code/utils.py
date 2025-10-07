@@ -252,7 +252,10 @@ def postprocess_rating(users, rating, dataset):
     beta = world.config["pc_beta"]
 
     compensation = (rating * beta) + (1 - beta)
-    pops = torch.tensor(dataset.item_popularities).to(world.device)
+
+    eps = 1
+    pops = torch.as_tensor(dataset.item_popularities, dtype=rating.dtype, device=rating.device).clamp_min(eps)
+
     compensation /= pops #broadcast
 
     allPos = dataset.getUserPosItems(users.to('cpu'))
@@ -270,7 +273,7 @@ def postprocess_rating(users, rating, dataset):
 
     test = rating * mask
     n = torch.norm((rating * mask) / (dataset.m_items - O).unsqueeze(1), dim=1)
-    m = torch.norm((rating * mask) / (dataset.m_items - O).unsqueeze(1), dim=1)
+    m = torch.norm((compensation * mask) / (dataset.m_items - O).unsqueeze(1), dim=1)
 
     return rating + alpha * (n/m).unsqueeze(1) * compensation
 # ====================Metrics==============================

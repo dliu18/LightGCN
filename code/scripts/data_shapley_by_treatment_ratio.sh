@@ -13,11 +13,12 @@ TRIAL_NUM=$4
 MODEL="lgn"
 
 BASE_CMD="python main.py --decay=1e-4 --lr=0.001 --layer=3 --seed=2020 --epochs=$((${EPOCHS} + 1)) --bpr_batch=${BATCH_SIZE} \
---test_interval=${EPOCHS} --topks=\"[20, 10000]\" --recdim=64 --model=$MODEL \
+--test_interval=${EPOCHS} --topks=\"[20, 20]\" --recdim=64 --model=$MODEL \
 --use_cpp=1 --sample_pos=1 --normalize_items=0 --normalize_users=0 --shuffle_users=1 --tau=0 \
---alpha=0 --beta=0"
+--alpha=0 --beta=0 \
+--load=1"
 
-for TREATMENT_RATIO in 0.01 0.05 0.1 0.3 0.5 0.9; do
+for TREATMENT_RATIO in 0.01 0.05 0.1 0.3 0.5; do
 	# # # Run fixed dataset
 	CMD="$BASE_CMD \
 	--dataset=\"${DATASET}-${TREATMENT_RATIO}/fixed/${SAMPLE_TYPE}\" \
