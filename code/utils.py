@@ -23,6 +23,7 @@ try:
     path = join(dirname(__file__), "sources/sampling.cpp")
     sampling = imp_from_filepath(path)
     sampling.seed(world.seed)
+    world.cprint("Cpp extension loaded")
     sample_ext = True
 except:
     world.cprint("Cpp extension not loaded")
@@ -38,8 +39,8 @@ class BPRLoss:
         self.lr = config['lr']
         self.opt = optim.Adam(recmodel.parameters(), lr=self.lr)
 
-    def stageOne(self, users, pos, neg):
-        loss, reg_loss = self.model.bpr_loss(users, pos, neg)
+    def stageOne(self, users, pos, neg, sample_weights=None):
+        loss, reg_loss = self.model.bpr_loss(users, pos, neg, sample_weights=sample_weights)
         reg_loss = reg_loss*self.weight_decay
         loss = loss + reg_loss
 

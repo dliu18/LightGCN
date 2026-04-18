@@ -30,7 +30,7 @@ if not os.path.exists(FILE_PATH):
 
 
 config = {}
-all_dataset = ['lastfm', 'gowalla', 'yelp2018', 'amazon-book']
+all_dataset = ['lastfm', 'gowalla', 'yelp2018', 'amazon-book', 'ml-1m']
 all_models  = ['mf', 'lgn']
 # config['batch_size'] = 4096
 config['bpr_batch_size'] = args.bpr_batch
@@ -46,6 +46,8 @@ config['decay'] = args.decay
 config['pretrain'] = args.pretrain
 config['A_split'] = False
 config['bigdata'] = False
+config['eval_split'] = args.eval_split
+config['val_split_idx'] = args.val_split_idx
 
 GPU = torch.cuda.is_available()
 device = torch.device('cuda' if GPU else "cpu")
@@ -58,6 +60,8 @@ if dataset not in all_dataset:
     raise NotImplementedError(f"Haven't supported {dataset} yet!, try {all_dataset}")
 if model_name not in all_models:
     raise NotImplementedError(f"Haven't supported {model_name} yet!, try {all_models}")
+if config['eval_split'] not in ['test', 'val']:
+    raise NotImplementedError("eval_split must be one of ['test', 'val']")
 
 
 
@@ -68,6 +72,12 @@ PATH = args.path
 topks = eval(args.topks)
 tensorboard = args.tensorboard
 comment = args.comment
+group_mixing_enabled = args.group_mixing
+group_labels_path = args.group_labels_pkl
+feature_name = args.feature_name
+source_group = args.source_group
+alpha_aug = args.alpha_aug
+alpha_mix = args.alpha_mix
 # let pandas shut up
 from warnings import simplefilter
 simplefilter(action="ignore", category=FutureWarning)

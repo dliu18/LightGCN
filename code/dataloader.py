@@ -39,6 +39,10 @@ class BasicDataset(Dataset):
     @property
     def testDict(self):
         raise NotImplementedError
+
+    @property
+    def valDict(self):
+        return {}
     
     @property
     def allPos(self):
@@ -66,6 +70,11 @@ class BasicDataset(Dataset):
             |R^T, I|
         """
         raise NotImplementedError
+
+    def get_eval_dict(self, split: str):
+        if split == "val":
+            return self.valDict
+        return self.testDict
 
 class LastFM(BasicDataset):
     """
@@ -136,6 +145,11 @@ class LastFM(BasicDataset):
     @property
     def allPos(self):
         return self._allPos
+
+    @property
+    def valDict(self):
+        # LastFM loader does not provide a validation file by default.
+        return {}
 
     def getSparseGraph(self):
         if self.Graph is None:
@@ -226,17 +240,33 @@ class Loader(BasicDataset):
         cprint(f'loading [{path}]')
         self.split = config['A_split']
         self.folds = config['A_n_fold']
+        self.eval_split = config.get('eval_split', 'test')
+        self.val_split_idx = int(config.get('val_split_idx', 0))
+        self.train_with_val = (self.eval_split == 'test')
         self.mode_dict = {'train': 0, "test": 1}
         self.mode = self.mode_dict['train']
         self.n_user = 0
         self.m_item = 0
         train_file = path + '/train.txt'
         test_file = path + '/test.txt'
+        val_file = path + '/val.txt'
+        train_full_file = path + '/train_full.txt'
+        train_fold_file = path + f'/train_fold_{self.val_split_idx}.txt'
+        val_fold_file = path + f'/val_fold_{self.val_split_idx}.txt'
+        if self.eval_split == 'val' and os.path.exists(train_fold_file) and os.path.exists(val_fold_file):
+            train_file = train_fold_file
+            val_file = val_fold_file
+        elif self.eval_split == 'test' and os.path.exists(train_full_file):
+            train_file = train_full_file
+            # already uses full non-test interactions
+            self.train_with_val = False
         self.path = path
         trainUniqueUsers, trainItem, trainUser = [], [], []
         testUniqueUsers, testItem, testUser = [], [], []
+        valUniqueUsers, valItem, valUser = [], [], []
         self.traindataSize = 0
         self.testDataSize = 0
+        self.valDataSize = 0
 
         with open(train_file) as f:
             for l in f.readlines():
@@ -270,19 +300,54 @@ class Loader(BasicDataset):
                     self.m_item = max(self.m_item, max(items))
                     self.n_user = max(self.n_user, uid)
                     self.testDataSize += len(items)
+
+        if os.path.exists(val_file):
+            with open(val_file) as f:
+                for l in f.readlines():
+                    if len(l) > 0:
+                        l = l.strip('\n').split(' ')
+                        try:
+                            items = [int(i) for i in l[1:]]
+                        except:
+                            print(l)
+                            continue
+                        uid = int(l[0])
+                        valUniqueUsers.append(uid)
+                        valUser.extend([uid] * len(items))
+                        valItem.extend(items)
+                        self.m_item = max(self.m_item, max(items))
+                        self.n_user = max(self.n_user, uid)
+                        self.valDataSize += len(items)
         self.m_item += 1
         self.n_user += 1
         self.testUniqueUsers = np.array(testUniqueUsers)
         self.testUser = np.array(testUser)
         self.testItem = np.array(testItem)
+        self.valUniqueUsers = np.array(valUniqueUsers)
+        self.valUser = np.array(valUser)
+        self.valItem = np.array(valItem)
+
+        if self.train_with_val and self.valDataSize > 0:
+            self.effTrainUser = np.concatenate([self.trainUser, self.valUser])
+            self.effTrainItem = np.concatenate([self.trainItem, self.valItem])
+            self.traindataSize = len(self.effTrainUser)
+        else:
+            self.effTrainUser = self.trainUser
+            self.effTrainItem = self.trainItem
         
         self.Graph = None
         print(f"{self.trainDataSize} interactions for training")
         print(f"{self.testDataSize} interactions for testing")
+        if self.valDataSize > 0:
+            print(f"{self.valDataSize} interactions for validation")
+        if self.eval_split == 'val':
+            print(f"eval_split=val -> using fold index {self.val_split_idx}")
+        if self.train_with_val and self.valDataSize > 0:
+            print("eval_split=test -> training uses train+val interactions")
         print(f"{world.dataset} Sparsity : {(self.trainDataSize + self.testDataSize) / self.n_users / self.m_items}")
 
         # (users,items), bipartite graph
-        self.UserItemNet = csr_matrix((np.ones(len(self.trainUser)), (self.trainUser, self.trainItem)),
+        self.UserItemNet = csr_matrix((np.ones(len(self.effTrainUser)), (self.effTrainUser, self.effTrainItem)),
                                       shape=(self.n_user, self.m_item))
         self.users_D = np.array(self.UserItemNet.sum(axis=1)).squeeze()
         self.users_D[self.users_D == 0.] = 1
@@ -291,6 +356,7 @@ class Loader(BasicDataset):
         # pre-calculate
         self._allPos = self.getUserPosItems(list(range(self.n_user)))
         self.__testDict = self.__build_test()
+        self.__valDict = self.__build_eval_dict(self.valUser, self.valItem)
         print(f"{world.dataset} is ready to go")
 
     @property
@@ -312,6 +378,10 @@ class Loader(BasicDataset):
     @property
     def allPos(self):
         return self._allPos
+
+    @property
+    def valDict(self):
+        return self.__valDict
 
     def _split_A_hat(self,A):
         A_fold = []
@@ -377,14 +447,17 @@ class Loader(BasicDataset):
         return:
             dict: {user: [items]}
         """
-        test_data = {}
-        for i, item in enumerate(self.testItem):
-            user = self.testUser[i]
-            if test_data.get(user):
-                test_data[user].append(item)
+        return self.__build_eval_dict(self.testUser, self.testItem)
+
+    def __build_eval_dict(self, users, items):
+        eval_data = {}
+        for i, item in enumerate(items):
+            user = users[i]
+            if eval_data.get(user):
+                eval_data[user].append(item)
             else:
-                test_data[user] = [item]
-        return test_data
+                eval_data[user] = [item]
+        return eval_data
 
     def getUserItemFeedback(self, users, items):
         """

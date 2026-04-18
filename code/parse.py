@@ -29,7 +29,24 @@ def parse_args():
     parser.add_argument('--testbatch', type=int,default=100,
                         help="the batch size of users for testing")
     parser.add_argument('--dataset', type=str,default='gowalla',
-                        help="available datasets: [lastfm, gowalla, yelp2018, amazon-book]")
+                        help="available datasets: [lastfm, gowalla, yelp2018, amazon-book, ml-1m]")
+    parser.add_argument('--eval_split', type=str, default='test',
+                        help="evaluation split: [test, val]")
+    parser.add_argument('--val_split_idx', type=int, default=0,
+                        help="validation fold index used when eval_split=val")
+    parser.add_argument('--group_mixing', type=int, default=0,
+                        help="enable group-aware data mixing (0/1)")
+    parser.add_argument('--group_labels_pkl', type=str, default='',
+                        help="pickle file containing feature->label->user_indices")
+    parser.add_argument('--feature_name', type=str, default='',
+                        help="feature key in labels pickle, e.g. Age")
+    parser.add_argument('--source_group', type=str, default='',
+                        help="source group label within feature, e.g. 18")
+    parser.add_argument('--alpha_aug', type=float, default=1.0,
+                        help="augmentation scaling scalar")
+    parser.add_argument('--alpha_mix', type=str, default='',
+                        help=("augmentation group ratio weights, either JSON dict "
+                              "or comma list in sorted augmentation-label order"))
     parser.add_argument('--path', type=str,default="./checkpoints",
                         help="path to save weights")
     parser.add_argument('--topks', nargs='?',default="[20]",

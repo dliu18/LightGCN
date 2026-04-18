@@ -23,7 +23,7 @@ from sklearn.metrics import roc_auc_score
 CORES = multiprocessing.cpu_count() // 2
 
 
-def BPR_train_original(dataset, recommend_model, loss_class, epoch, neg_k=1, w=None):
+def BPR_train_original(dataset, recommend_model, loss_class, epoch, neg_k=1, w=None, mix_state=None):
     Recmodel = recommend_model
     Recmodel.train()
     bpr: utils.BPRLoss = loss_class
@@ -41,13 +41,16 @@ def BPR_train_original(dataset, recommend_model, loss_class, epoch, neg_k=1, w=N
     total_batch = len(users) // world.config['bpr_batch_size'] + 1
     aver_loss = 0.
     for (batch_i,
-         (batch_users,
+        (batch_users,
           batch_pos,
           batch_neg)) in enumerate(utils.minibatch(users,
                                                    posItems,
                                                    negItems,
                                                    batch_size=world.config['bpr_batch_size'])):
-        cri = bpr.stageOne(batch_users, batch_pos, batch_neg)
+        sample_weights = None
+        if mix_state is not None:
+            sample_weights = mix_state["user_weights"][batch_users.cpu().numpy()]
+        cri = bpr.stageOne(batch_users, batch_pos, batch_neg, sample_weights=sample_weights)
         aver_loss += cri
         if world.tensorboard:
             w.add_scalar(f'BPRLoss/BPR', cri, epoch * int(len(users) / world.config['bpr_batch_size']) + batch_i)
@@ -72,10 +75,15 @@ def test_one_batch(X):
             'ndcg':np.array(ndcg)}
         
             
-def Test(dataset, Recmodel, epoch, w=None, multicore=0):
+def Test(dataset, Recmodel, epoch, w=None, multicore=0, allowed_users=None):
     u_batch_size = world.config['test_u_batch_size']
     dataset: utils.BasicDataset
-    testDict: dict = dataset.testDict
+    testDict: dict = dataset.get_eval_dict(world.config['eval_split'])
+    if not testDict:
+        raise ValueError(
+            f"No users found in eval split '{world.config['eval_split']}'. "
+            "Check that the split file exists and is non-empty."
+        )
     Recmodel: model.LightGCN
     # eval mode with no dropout
     Recmodel = Recmodel.eval()
@@ -87,6 +95,10 @@ def Test(dataset, Recmodel, epoch, w=None, multicore=0):
                'ndcg': np.zeros(len(world.topks))}
     with torch.no_grad():
         users = list(testDict.keys())
+        if allowed_users is not None:
+            users = [u for u in users if u in allowed_users]
+            if not users:
+                raise ValueError("No evaluation users remain after source-group filtering.")
         try:
             assert u_batch_size <= len(users) / 10
         except AssertionError:

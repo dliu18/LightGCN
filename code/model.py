@@ -24,7 +24,7 @@ class BasicModel(nn.Module):
 class PairWiseModel(BasicModel):
     def __init__(self):
         super(PairWiseModel, self).__init__()
-    def bpr_loss(self, users, pos, neg):
+    def bpr_loss(self, users, pos, neg, sample_weights=None):
         """
         Parameters:
             users: users list 
@@ -60,13 +60,18 @@ class PureMF(BasicModel):
         scores = torch.matmul(users_emb, items_emb.t())
         return self.f(scores)
     
-    def bpr_loss(self, users, pos, neg):
+    def bpr_loss(self, users, pos, neg, sample_weights=None):
         users_emb = self.embedding_user(users.long())
         pos_emb   = self.embedding_item(pos.long())
         neg_emb   = self.embedding_item(neg.long())
         pos_scores= torch.sum(users_emb*pos_emb, dim=1)
         neg_scores= torch.sum(users_emb*neg_emb, dim=1)
-        loss = torch.mean(nn.functional.softplus(neg_scores - pos_scores))
+        per_sample = nn.functional.softplus(neg_scores - pos_scores)
+        if sample_weights is None:
+            loss = torch.mean(per_sample)
+        else:
+            weights = torch.as_tensor(sample_weights, device=per_sample.device, dtype=per_sample.dtype)
+            loss = torch.sum(weights * per_sample) / float(len(users))
         reg_loss = (1/2)*(users_emb.norm(2).pow(2) + 
                           pos_emb.norm(2).pow(2) + 
                           neg_emb.norm(2).pow(2))/float(len(users))
@@ -188,7 +193,7 @@ class LightGCN(BasicModel):
         neg_emb_ego = self.embedding_item(neg_items)
         return users_emb, pos_emb, neg_emb, users_emb_ego, pos_emb_ego, neg_emb_ego
     
-    def bpr_loss(self, users, pos, neg):
+    def bpr_loss(self, users, pos, neg, sample_weights=None):
         (users_emb, pos_emb, neg_emb, 
         userEmb0,  posEmb0, negEmb0) = self.getEmbedding(users.long(), pos.long(), neg.long())
         reg_loss = (1/2)*(userEmb0.norm(2).pow(2) + 
@@ -199,8 +204,13 @@ class LightGCN(BasicModel):
         neg_scores = torch.mul(users_emb, neg_emb)
         neg_scores = torch.sum(neg_scores, dim=1)
         
-        loss = torch.mean(torch.nn.functional.softplus(neg_scores - pos_scores))
-        
+        per_sample = torch.nn.functional.softplus(neg_scores - pos_scores)
+        if sample_weights is None:
+            loss = torch.mean(per_sample)
+        else:
+            weights = torch.as_tensor(sample_weights, device=per_sample.device, dtype=per_sample.dtype)
+            loss = torch.sum(weights * per_sample) / float(len(users))
+
         return loss, reg_loss
        
     def forward(self, users, items):
