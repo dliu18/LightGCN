@@ -71,7 +71,7 @@ class PureMF(BasicModel):
             loss = torch.mean(per_sample)
         else:
             weights = torch.as_tensor(sample_weights, device=per_sample.device, dtype=per_sample.dtype)
-            loss = torch.sum(weights * per_sample) / float(len(users))
+            loss = torch.sum(weights * per_sample) / torch.clamp(weights.sum(), min=1e-12)
         reg_loss = (1/2)*(users_emb.norm(2).pow(2) + 
                           pos_emb.norm(2).pow(2) + 
                           neg_emb.norm(2).pow(2))/float(len(users))
@@ -209,7 +209,7 @@ class LightGCN(BasicModel):
             loss = torch.mean(per_sample)
         else:
             weights = torch.as_tensor(sample_weights, device=per_sample.device, dtype=per_sample.dtype)
-            loss = torch.sum(weights * per_sample) / float(len(users))
+            loss = torch.sum(weights * per_sample) / torch.clamp(weights.sum(), min=1e-12)
 
         return loss, reg_loss
        
