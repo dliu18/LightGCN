@@ -29,7 +29,7 @@ def parse_args():
     parser.add_argument('--testbatch', type=int,default=100,
                         help="the batch size of users for testing")
     parser.add_argument('--dataset', type=str,default='gowalla',
-                        help="available datasets: [lastfm, gowalla, yelp2018, amazon-book, ml-1m]")
+                        help="available datasets: [lastfm, gowalla, yelp2018, amazon-book, ml-1m, lastfm-asia]")
     parser.add_argument('--eval_split', type=str, default='test',
                         help="evaluation split: [test, val]")
     parser.add_argument('--val_split_idx', type=int, default=0,
